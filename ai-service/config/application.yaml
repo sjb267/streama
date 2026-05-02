@@ -1,0 +1,72 @@
+service:
+  name: streama-cloud-ai
+  host: 0.0.0.0
+  port: 7075
+  log_level: INFO
+
+nacos:
+  enabled: true
+  server_addr: 127.0.0.1:8848
+  namespace: ""
+  group: DEFAULT_GROUP
+  username: nacos
+  password: nacos123
+  service_name: streama-cloud-ai
+  cluster_name: DEFAULT
+  ephemeral: true
+  heartbeat_interval_seconds: 5
+  register_ip: ""
+  metadata:
+    protocol: http
+    version: 1.0.0
+    contextPath: /
+  config_enabled: false
+  config_data_id: streama-cloud-ai-dev.yml
+  config_group: DEFAULT_GROUP
+
+rabbitmq:
+  enabled: true
+  host: 127.0.0.1
+  port: 5672
+  username: admin
+  password: "123456"
+  virtual_host: /
+  heartbeat: 60
+  blocked_connection_timeout: 30
+  prefetch_count: 1
+  reconnect_interval_seconds: 5
+  request_dedupe_ttl_seconds: 1800
+  request_dedupe_max_entries: 256
+  auto_declare: true
+  exchange: streama.audit.exchange
+  exchange_type: topic
+  request_queue: streama.audit.request.queue
+  request_routing_key: audit.video.request
+  request_dlx: streama.audit.request.dlx
+  request_dlq: streama.audit.request.dlq
+  result_queue: streama.audit.result.queue
+  result_routing_key: audit.video.result
+  result_dlx: streama.audit.result.dlx
+  result_dlq: streama.audit.result.dlq
+
+storage:
+  root_dir: ../streama-cloud/file
+
+integration:
+  web_base_url: http://127.0.0.1:7071/web
+  resource_base_url: http://127.0.0.1:7071/file
+  http_timeout_seconds: 120
+  progress_callback_enabled: false
+
+moderation:
+  model_dir: ./models
+  qwen_device: cuda
+  preload_models: true
+  extraction_rate: 1
+  sound_top_k: 5
+  sound_confidence_threshold: 0.3
+  language: zh
+  model_name: qwen-video-moderation
+  model_version: 1.0.0
+  trace_model_inputs: true
+  trace_dir: ./audit_results/model_input_traces

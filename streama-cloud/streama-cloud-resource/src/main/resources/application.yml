@@ -1,0 +1,41 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: streama-cloud-resource
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8848
+  config:
+    import:
+      - nacos:streama-cloud-resource-dev.yml?refreshEnabled=true
+
+server:
+  port: 7074
+
+seata:
+  tx-service-group: default_tx_group
+  config:
+    type: nacos
+    nacos:
+      server-addr: 127.0.0.1:8848
+      group: SEATA_GROUP
+      namespace: ""
+      username: "nacos"
+      password: "nacos123"
+      data-id: seataServer.properties
+  registry:
+    type: nacos
+    nacos:
+      application: seata-server
+      server-addr: 127.0.0.1:8848
+      group: SEATA_GROUP
+      namespace: ""
+      username: "nacos"
+      password: "nacos123"
+      ##if use MSE Nacos with auth, mutex with username/password attribute
+      #access-key: ""
+      #secret-key: ""
+  service:
+    vgroup-mapping:
+      default_tx_group: default

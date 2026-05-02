@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.streama.mappers.AiAuditTaskMapper">
+
+    <resultMap id="base_result_map" type="com.streama.entity.po.AiAuditTask">
+        <id column="task_id" property="taskId"/>
+        <result column="request_id" property="requestId"/>
+        <result column="video_id" property="videoId"/>
+        <result column="audit_version" property="auditVersion"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="task_status" property="taskStatus"/>
+        <result column="ai_decision" property="aiDecision"/>
+        <result column="ai_risk_level" property="aiRiskLevel"/>
+        <result column="ai_summary" property="aiSummary"/>
+        <result column="model_name" property="modelName"/>
+        <result column="model_version" property="modelVersion"/>
+        <result column="trigger_time" property="triggerTime"/>
+        <result column="completed_at" property="completedAt"/>
+        <result column="retry_count" property="retryCount"/>
+        <result column="last_error" property="lastError"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.streama.entity.po.AiAuditTask" useGeneratedKeys="true" keyProperty="taskId">
+        INSERT INTO ai_audit_task (
+            request_id, video_id, audit_version, source_type, task_status,
+            ai_decision, ai_risk_level, ai_summary, model_name, model_version,
+            trigger_time, completed_at, retry_count, last_error, created_at, updated_at
+        )
+        VALUES (
+            #{bean.requestId}, #{bean.videoId}, #{bean.auditVersion}, #{bean.sourceType}, #{bean.taskStatus},
+            #{bean.aiDecision}, #{bean.aiRiskLevel}, #{bean.aiSummary}, #{bean.modelName}, #{bean.modelVersion},
+            #{bean.triggerTime}, #{bean.completedAt}, #{bean.retryCount}, #{bean.lastError}, #{bean.createdAt}, #{bean.updatedAt}
+        )
+    </insert>
+
+    <update id="updateByTaskId" parameterType="com.streama.entity.po.AiAuditTask">
+        UPDATE ai_audit_task
+        <set>
+            <if test="bean.requestId != null">request_id = #{bean.requestId},</if>
+            <if test="bean.videoId != null">video_id = #{bean.videoId},</if>
+            <if test="bean.auditVersion != null">audit_version = #{bean.auditVersion},</if>
+            <if test="bean.sourceType != null">source_type = #{bean.sourceType},</if>
+            <if test="bean.taskStatus != null">task_status = #{bean.taskStatus},</if>
+            <if test="bean.aiDecision != null">ai_decision = #{bean.aiDecision},</if>
+            <if test="bean.aiRiskLevel != null">ai_risk_level = #{bean.aiRiskLevel},</if>
+            <if test="bean.aiSummary != null">ai_summary = #{bean.aiSummary},</if>
+            <if test="bean.modelName != null">model_name = #{bean.modelName},</if>
+            <if test="bean.modelVersion != null">model_version = #{bean.modelVersion},</if>
+            <if test="bean.triggerTime != null">trigger_time = #{bean.triggerTime},</if>
+            <if test="bean.completedAt != null">completed_at = #{bean.completedAt},</if>
+            <if test="bean.retryCount != null">retry_count = #{bean.retryCount},</if>
+            <if test="bean.lastError != null">last_error = #{bean.lastError},</if>
+            <if test="bean.createdAt != null">created_at = #{bean.createdAt},</if>
+            <if test="bean.updatedAt != null">updated_at = #{bean.updatedAt},</if>
+        </set>
+        WHERE task_id = #{taskId}
+    </update>
+
+    <select id="selectByRequestId" resultMap="base_result_map">
+        SELECT * FROM ai_audit_task WHERE request_id = #{requestId} LIMIT 1
+    </select>
+
+    <select id="selectLatestByVideoId" resultMap="base_result_map">
+        SELECT * FROM ai_audit_task
+        WHERE video_id = #{videoId}
+        ORDER BY audit_version DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectMaxAuditVersionByVideoId" resultType="java.lang.Integer">
+        SELECT IFNULL(MAX(audit_version), 0)
+        FROM ai_audit_task
+        WHERE video_id = #{videoId}
+    </select>
+</mapper>
+

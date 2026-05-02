@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap');
+
+:root {
+  color-scheme: light;
+  --admin-bg: #eef3ff;
+  --admin-text-primary: #1f2a44;
+  --admin-text-secondary: #697a9c;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'Work Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: var(--admin-text-primary);
+  background: var(--admin-bg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-family: 'Outfit', 'Work Sans', sans-serif;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}

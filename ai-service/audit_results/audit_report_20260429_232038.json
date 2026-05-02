@@ -1,0 +1,68 @@
+{
+  "video_path": "E:\\Project\\by-project\\streama-system\\ai-service\\temp\\requests\\917606ddfbe6448c88bc4d65822ea782\\UQbHGIRr2ndprPRBZSAV\\temp.mp4",
+  "total_segments": 3,
+  "risky_segments": 2,
+  "risk_rate": 0.6666666666666666,
+  "high_risk_count": 2,
+  "medium_risk_count": 0,
+  "low_risk_count": 1,
+  "risk_type_distribution": {
+    "violence": 2
+  },
+  "modalities_checked": [
+    "audio",
+    "audio_event",
+    "metadata_text",
+    "speech_text",
+    "vad",
+    "visual"
+  ],
+  "coverage_issues": [],
+  "audit_complete": true,
+  "segments": [
+    {
+      "segment_id": 1,
+      "time": "0.00s-6.84s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "violence",
+        "risk_score": 0.92,
+        "reason": "画面中多次出现持枪人员、枪械特写及对峙场景，符合暴力内容定义；文字部分无违规，但背景音乐为卡点音乐，无直接暴力音效；整体内容为电影剪辑，但暴力画面占比高，视觉冲击强烈，综合风险评分高，建议拦截。",
+        "segment_id": 1,
+        "time_range": "0.0s-6.84s"
+      }
+    },
+    {
+      "segment_id": 2,
+      "time": "6.84s-176.37s",
+      "text_preview": "i like the match to taste the heati've always liked to play with fire i always like to play fire i r...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "violence",
+        "risk_score": 0.92,
+        "reason": "画面中包含多处持枪、射击、枪械特写及人物处于紧张对峙或被压制状态的场景，符合暴力内容定义；文字内容包含'play with fire'、'taste the heat'、'I love to watch the castles burn'等具有暴力美学和血腥暗示的歌词，强化暴力氛围；背景声音为叙述性旁白和chant，配合画面营造紧张刺激的枪战氛围，整体构成高风险暴力内容。",
+        "segment_id": 2,
+        "time_range": "6.84s-176.37s"
+      }
+    },
+    {
+      "segment_id": 3,
+      "time": "176.37s-179.51s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.1,
+        "reason": "画面展示的是手持枪械的特写镜头，属于影视剪辑中常见的动作场景，无实际暴力行为或血腥内容；文字部分无任何违规信息；背景声音为音乐，非枪声或爆炸声。整体内容符合卡点剪辑的常规表现形式，无政治敏感、色情或恐怖元素，风险极低。",
+        "segment_id": 3,
+        "time_range": "176.37s-179.51s"
+      }
+    }
+  ],
+  "decision": "高风险 - 建议拦截",
+  "decision_level": "high"
+}

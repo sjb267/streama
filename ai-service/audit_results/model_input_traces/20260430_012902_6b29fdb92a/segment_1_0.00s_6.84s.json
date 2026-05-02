@@ -1,0 +1,196 @@
+{
+  "trace_session_id": "20260430_012902_6b29fdb92a",
+  "created_at": "2026-04-30T01:31:37",
+  "prompt": "请审核这段视频内容，结合画面、文字、声音三方面信息综合判断是否存在违规内容。\n\n        【时间范围】\n        0.0秒 - 6.84秒\n\n        【画面信息】\n        （见附图中的视频帧，展示该时间段内的关键画面）\n        source_type=visual_fallback; representative_frame_count=9\n\n        【文字内容】\n        \"\"\n\n        【整段语音上下文（非当前窗口专属）】\n        无\n\n        【投稿元数据/标题简介标签文件名】\n        \"title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0\"\n\n        【文本规则预检】\n        无文本规则命中\n\n        【背景声音】\n        背景声音：Music, Silence\n\n        【长文本上下文】\n        否\n\n        【审核要求】\n        请基于以上所有信息（画面+文字+声音）综合判断，不要仅依赖单一模态。\n        如果【整段语音上下文（非当前窗口专属）】与【文字内容】不一致，必须以当前时间窗口的【文字内容】、画面、声音为准；整段语音上下文只能辅助理解，不得单独作为当前窗口违规证据。\n        Please also inspect visible text in the image, including subtitles, slogans, cover text, posters, UI text, and watermarks. Treat the title, introduction, tags, cover information, and file name as moderation text too. If there is no speech transcript, still judge the visual content independently.\n\n        需要检测的违规类型包括：\n\n        1. 暴力内容：\n        - 画面：打架、流血、武器、暴力场景\n        - 文字：暴力威胁、血腥描述、伤害言论\n        - 声音：枪声、爆炸声、打斗声、尖叫声、哭声\n        - 语境：影视/游戏/动画中的武器、战斗、爆炸，如果没有真实伤害、血腥、教程、威胁、教唆，通常不要直接拦截，最高建议人工复核\n\n        2. 色情内容：\n        - 画面：裸露、性暗示、不雅动作\n        - 文字：色情描述、露骨言论、性暗示\n        - 声音：暧昧声音、喘息声\n\n        3. 政治敏感：\n        - 画面：敏感标志、敏感人物、敏感场景\n        - 文字：政治敏感言论、违规表述\n        - 声音：敏感口号、政治性声音\n\n        4. 高频平台违规：\n        - fraud：诈骗、刷单、返利、贷款、投资群、加联系方式导流\n        - gambling：赌博、博彩、下注、盘口、赔率、赌场\n        - drug：毒品交易、吸毒展示、制毒或购买暗示\n        - minor_safety：未成年人性风险、诱导、隐私暴露\n        - self_harm：自残自杀表达、教程、鼓励轻生\n        - privacy：身份证、手机号、住址、开盒、人肉、隐私泄露\n        - hate_harassment：辱骂、歧视、仇恨、持续骚扰\n        - terror_extremism：恐怖极端组织、口号、暴恐教程\n        - vulgar：低俗擦边、裸聊、大尺度引流\n        - animal_cruelty：虐待动物\n        - copyright：盗版资源、未授权搬运、全集下载\n        - illegal_trade：枪支、管制刀具、假证、违禁品交易\n\n        【综合评分规则】\n        - policy_action=reject：明确命中平台不可放行场景，risk_score 通常 >=0.78\n        - policy_action=review：上下文不足或影视/游戏暴力等边界场景，risk_score 通常 0.31-0.70\n        - policy_action=pass：未发现违规，risk_score <=0.30\n        - 单独音频枪声/爆炸/尖叫等，如果画面和文字不支持真实风险，应建议 review 而不是 reject\n        - 请给出 content_context：game/film/animation/news/real/unknown\n        - 请给出 evidence_modalities：visual/speech_text/metadata_text/audio_event/text_policy 中命中的证据来源\n\n        【输出格式】\n        请严格按照以下JSON格式输出审核结果，不要有其他文字：\n\n        {\n            \"is_risky\": true/false,\n            \"risk_type\": \"violence/sexual/political/fraud/gambling/drug/minor_safety/self_harm/privacy/hate_harassment/terror_extremism/vulgar/animal_cruelty/copyright/illegal_trade/other/normal\",\n            \"risk_score\": 0.85,\n            \"reason\": \"审核理由，说明画面、文字、声音各自的情况及综合判断依据\",\n            \"risk_subtype\": \"可选：更细场景，如 fictional_weapon_display/scam_or_diversion\",\n            \"severity\": \"low/medium/high/critical\",\n            \"confidence\": 0.0,\n            \"content_context\": \"game/film/animation/news/real/unknown\",\n            \"policy_action\": \"pass/review/reject\",\n            \"evidence_modalities\": [\"visual\", \"speech_text\"]\n        }\n\n        注意：\n        - risk_type 必须只使用上面列出的英文稳定标签；没有风险时使用 normal\n        - risk_score 范围0-1，**分数越高表示风险越高**\n        - 高风险 >0.7 建议拦截\n        - 中风险 0.3-0.7 建议人工复核\n        - 低风险 <0.3 可通过\n        ",
+  "chat_template_text": "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>请审核这段视频内容，结合画面、文字、声音三方面信息综合判断是否存在违规内容。\n\n        【时间范围】\n        0.0秒 - 6.84秒\n\n        【画面信息】\n        （见附图中的视频帧，展示该时间段内的关键画面）\n        source_type=visual_fallback; representative_frame_count=9\n\n        【文字内容】\n        \"\"\n\n        【整段语音上下文（非当前窗口专属）】\n        无\n\n        【投稿元数据/标题简介标签文件名】\n        \"title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0\"\n\n        【文本规则预检】\n        无文本规则命中\n\n        【背景声音】\n        背景声音：Music, Silence\n\n        【长文本上下文】\n        否\n\n        【审核要求】\n        请基于以上所有信息（画面+文字+声音）综合判断，不要仅依赖单一模态。\n        如果【整段语音上下文（非当前窗口专属）】与【文字内容】不一致，必须以当前时间窗口的【文字内容】、画面、声音为准；整段语音上下文只能辅助理解，不得单独作为当前窗口违规证据。\n        Please also inspect visible text in the image, including subtitles, slogans, cover text, posters, UI text, and watermarks. Treat the title, introduction, tags, cover information, and file name as moderation text too. If there is no speech transcript, still judge the visual content independently.\n\n        需要检测的违规类型包括：\n\n        1. 暴力内容：\n        - 画面：打架、流血、武器、暴力场景\n        - 文字：暴力威胁、血腥描述、伤害言论\n        - 声音：枪声、爆炸声、打斗声、尖叫声、哭声\n        - 语境：影视/游戏/动画中的武器、战斗、爆炸，如果没有真实伤害、血腥、教程、威胁、教唆，通常不要直接拦截，最高建议人工复核\n\n        2. 色情内容：\n        - 画面：裸露、性暗示、不雅动作\n        - 文字：色情描述、露骨言论、性暗示\n        - 声音：暧昧声音、喘息声\n\n        3. 政治敏感：\n        - 画面：敏感标志、敏感人物、敏感场景\n        - 文字：政治敏感言论、违规表述\n        - 声音：敏感口号、政治性声音\n\n        4. 高频平台违规：\n        - fraud：诈骗、刷单、返利、贷款、投资群、加联系方式导流\n        - gambling：赌博、博彩、下注、盘口、赔率、赌场\n        - drug：毒品交易、吸毒展示、制毒或购买暗示\n        - minor_safety：未成年人性风险、诱导、隐私暴露\n        - self_harm：自残自杀表达、教程、鼓励轻生\n        - privacy：身份证、手机号、住址、开盒、人肉、隐私泄露\n        - hate_harassment：辱骂、歧视、仇恨、持续骚扰\n        - terror_extremism：恐怖极端组织、口号、暴恐教程\n        - vulgar：低俗擦边、裸聊、大尺度引流\n        - animal_cruelty：虐待动物\n        - copyright：盗版资源、未授权搬运、全集下载\n        - illegal_trade：枪支、管制刀具、假证、违禁品交易\n\n        【综合评分规则】\n        - policy_action=reject：明确命中平台不可放行场景，risk_score 通常 >=0.78\n        - policy_action=review：上下文不足或影视/游戏暴力等边界场景，risk_score 通常 0.31-0.70\n        - policy_action=pass：未发现违规，risk_score <=0.30\n        - 单独音频枪声/爆炸/尖叫等，如果画面和文字不支持真实风险，应建议 review 而不是 reject\n        - 请给出 content_context：game/film/animation/news/real/unknown\n        - 请给出 evidence_modalities：visual/speech_text/metadata_text/audio_event/text_policy 中命中的证据来源\n\n        【输出格式】\n        请严格按照以下JSON格式输出审核结果，不要有其他文字：\n\n        {\n            \"is_risky\": true/false,\n            \"risk_type\": \"violence/sexual/political/fraud/gambling/drug/minor_safety/self_harm/privacy/hate_harassment/terror_extremism/vulgar/animal_cruelty/copyright/illegal_trade/other/normal\",\n            \"risk_score\": 0.85,\n            \"reason\": \"审核理由，说明画面、文字、声音各自的情况及综合判断依据\",\n            \"risk_subtype\": \"可选：更细场景，如 fictional_weapon_display/scam_or_diversion\",\n            \"severity\": \"low/medium/high/critical\",\n            \"confidence\": 0.0,\n            \"content_context\": \"game/film/animation/news/real/unknown\",\n            \"policy_action\": \"pass/review/reject\",\n            \"evidence_modalities\": [\"visual\", \"speech_text\"]\n        }\n\n        注意：\n        - risk_type 必须只使用上面列出的英文稳定标签；没有风险时使用 normal\n        - risk_score 范围0-1，**分数越高表示风险越高**\n        - 高风险 >0.7 建议拦截\n        - 中风险 0.3-0.7 建议人工复核\n        - 低风险 <0.3 可通过\n        <|im_end|>\n<|im_start|>assistant\n",
+  "message_payload": {
+    "role": "user",
+    "content": [
+      {
+        "type": "image",
+        "source_path": "keyframes\\571d10fa\\segment_7_contact.jpg",
+        "snapshot_path": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\images\\segment_1_0.00s_6.84s.jpg",
+        "file_name": "segment_7_contact.jpg"
+      },
+      {
+        "type": "text",
+        "text_length": 3267,
+        "text": "请审核这段视频内容，结合画面、文字、声音三方面信息综合判断是否存在违规内容。\n\n        【时间范围】\n        0.0秒 - 6.84秒\n\n        【画面信息】\n        （见附图中的视频帧，展示该时间段内的关键画面）\n        source_type=visual_fallback; representative_frame_count=9\n\n        【文字内容】\n        \"\"\n\n        【整段语音上下文（非当前窗口专属）】\n        无\n\n        【投稿元数据/标题简介标签文件名】\n        \"title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0\"\n\n        【文本规则预检】\n        无文本规则命中\n\n        【背景声音】\n        背景声音：Music, Silence\n\n        【长文本上下文】\n        否\n\n        【审核要求】\n        请基于以上所有信息（画面+文字+声音）综合判断，不要仅依赖单一模态。\n        如果【整段语音上下文（非当前窗口专属）】与【文字内容】不一致，必须以当前时间窗口的【文字内容】、画面、声音为准；整段语音上下文只能辅助理解，不得单独作为当前窗口违规证据。\n        Please also inspect visible text in the image, including subtitles, slogans, cover text, posters, UI text, and watermarks. Treat the title, introduction, tags, cover information, and file name as moderation text too. If there is no speech transcript, still judge the visual content independently.\n\n        需要检测的违规类型包括：\n\n        1. 暴力内容：\n        - 画面：打架、流血、武器、暴力场景\n        - 文字：暴力威胁、血腥描述、伤害言论\n        - 声音：枪声、爆炸声、打斗声、尖叫声、哭声\n        - 语境：影视/游戏/动画中的武器、战斗、爆炸，如果没有真实伤害、血腥、教程、威胁、教唆，通常不要直接拦截，最高建议人工复核\n\n        2. 色情内容：\n        - 画面：裸露、性暗示、不雅动作\n        - 文字：色情描述、露骨言论、性暗示\n        - 声音：暧昧声音、喘息声\n\n        3. 政治敏感：\n        - 画面：敏感标志、敏感人物、敏感场景\n        - 文字：政治敏感言论、违规表述\n        - 声音：敏感口号、政治性声音\n\n        4. 高频平台违规：\n        - fraud：诈骗、刷单、返利、贷款、投资群、加联系方式导流\n        - gambling：赌博、博彩、下注、盘口、赔率、赌场\n        - drug：毒品交易、吸毒展示、制毒或购买暗示\n        - minor_safety：未成年人性风险、诱导、隐私暴露\n        - self_harm：自残自杀表达、教程、鼓励轻生\n        - privacy：身份证、手机号、住址、开盒、人肉、隐私泄露\n        - hate_harassment：辱骂、歧视、仇恨、持续骚扰\n        - terror_extremism：恐怖极端组织、口号、暴恐教程\n        - vulgar：低俗擦边、裸聊、大尺度引流\n        - animal_cruelty：虐待动物\n        - copyright：盗版资源、未授权搬运、全集下载\n        - illegal_trade：枪支、管制刀具、假证、违禁品交易\n\n        【综合评分规则】\n        - policy_action=reject：明确命中平台不可放行场景，risk_score 通常 >=0.78\n        - policy_action=review：上下文不足或影视/游戏暴力等边界场景，risk_score 通常 0.31-0.70\n        - policy_action=pass：未发现违规，risk_score <=0.30\n        - 单独音频枪声/爆炸/尖叫等，如果画面和文字不支持真实风险，应建议 review 而不是 reject\n        - 请给出 content_context：game/film/animation/news/real/unknown\n        - 请给出 evidence_modalities：visual/speech_text/metadata_text/audio_event/text_policy 中命中的证据来源\n\n        【输出格式】\n        请严格按照以下JSON格式输出审核结果，不要有其他文字：\n\n        {\n            \"is_risky\": true/false,\n            \"risk_type\": \"violence/sexual/political/fraud/gambling/drug/minor_safety/self_harm/privacy/hate_harassment/terror_extremism/vulgar/animal_cruelty/copyright/illegal_trade/other/normal\",\n            \"risk_score\": 0.85,\n            \"reason\": \"审核理由，说明画面、文字、声音各自的情况及综合判断依据\",\n            \"risk_subtype\": \"可选：更细场景，如 fictional_weapon_display/scam_or_diversion\",\n            \"severity\": \"low/medium/high/critical\",\n            \"confidence\": 0.0,\n            \"content_context\": \"game/film/animation/news/real/unknown\",\n            \"policy_action\": \"pass/review/reject\",\n            \"evidence_modalities\": [\"visual\", \"speech_text\"]\n        }\n\n        注意：\n        - risk_type 必须只使用上面列出的英文稳定标签；没有风险时使用 normal\n        - risk_score 范围0-1，**分数越高表示风险越高**\n        - 高风险 >0.7 建议拦截\n        - 中风险 0.3-0.7 建议人工复核\n        - 低风险 <0.3 可通过\n        "
+      }
+    ],
+    "segment": {
+      "segment_id": 1,
+      "start": 0.0,
+      "end": 6.84,
+      "duration": 6.84,
+      "text_scope": "window"
+    }
+  },
+  "image_path": "keyframes\\571d10fa\\segment_7_contact.jpg",
+  "image_snapshot_path": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\images\\segment_1_0.00s_6.84s.jpg",
+  "segment_context": {
+    "segment_id": 1,
+    "start": 0.0,
+    "end": 6.84,
+    "duration": 6.84,
+    "text": "",
+    "window_text": "",
+    "source_transcript_text": "",
+    "source_text_time_range": "",
+    "text_scope": "window",
+    "source_type": "visual_fallback",
+    "metadata_summary": "title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0",
+    "sound_summary": "背景声音：Music, Silence",
+    "text_policy_summary": "无文本规则命中",
+    "text_policy_matches": [],
+    "modalities": [
+      "visual",
+      "metadata_text",
+      "audio_event"
+    ],
+    "long_text_context": false,
+    "has_risk_sound": false,
+    "risk_sounds": [],
+    "sound_events": [
+      {
+        "time": 1.47,
+        "class": "Silence",
+        "confidence": 1.0,
+        "is_risk": false,
+        "risk_category": null
+      },
+      {
+        "time": 3.9000000000000004,
+        "class": "Music",
+        "confidence": 0.9740961194038391,
+        "is_risk": false,
+        "risk_category": null
+      },
+      {
+        "time": 6.3,
+        "class": "Music",
+        "confidence": 0.9816306233406067,
+        "is_risk": false,
+        "risk_category": null
+      }
+    ],
+    "best_frame_path": "keyframes\\571d10fa\\frame_0007_3.72s.jpg",
+    "contact_sheet_path": "keyframes\\571d10fa\\segment_7_contact.jpg",
+    "segment_frames": [
+      {
+        "frame_id": 0,
+        "timestamp": 0.0,
+        "path": "keyframes\\571d10fa\\frame_0000_0.00s.jpg",
+        "frame_count": 0,
+        "reasons": null
+      },
+      {
+        "frame_id": 2,
+        "timestamp": 2.0,
+        "path": "keyframes\\571d10fa\\frame_0002_2.00s.jpg",
+        "frame_count": 50,
+        "reasons": null
+      },
+      {
+        "frame_id": 4,
+        "timestamp": 2.88,
+        "path": "keyframes\\571d10fa\\frame_0004_2.88s.jpg",
+        "frame_count": 72,
+        "reasons": [
+          "transition_after"
+        ]
+      },
+      {
+        "frame_id": 7,
+        "timestamp": 3.72,
+        "path": "keyframes\\571d10fa\\frame_0007_3.72s.jpg",
+        "frame_count": 93,
+        "reasons": [
+          "transition_before"
+        ]
+      },
+      {
+        "frame_id": 9,
+        "timestamp": 3.8,
+        "path": "keyframes\\571d10fa\\frame_0009_3.80s.jpg",
+        "frame_count": 95,
+        "reasons": [
+          "transition_followup"
+        ]
+      },
+      {
+        "frame_id": 11,
+        "timestamp": 4.4,
+        "path": "keyframes\\571d10fa\\frame_0011_4.40s.jpg",
+        "frame_count": 110,
+        "reasons": [
+          "transition_before"
+        ]
+      },
+      {
+        "frame_id": 14,
+        "timestamp": 5.0,
+        "path": "keyframes\\571d10fa\\frame_0014_5.00s.jpg",
+        "frame_count": 125,
+        "reasons": null
+      },
+      {
+        "frame_id": 16,
+        "timestamp": 6.04,
+        "path": "keyframes\\571d10fa\\frame_0016_6.04s.jpg",
+        "frame_count": 151,
+        "reasons": [
+          "transition_after"
+        ]
+      },
+      {
+        "frame_id": 18,
+        "timestamp": 7.0,
+        "path": "keyframes\\571d10fa\\frame_0018_7.00s.jpg",
+        "frame_count": 175,
+        "reasons": null
+      }
+    ]
+  },
+  "generation_params": {
+    "max_new_tokens": 384,
+    "do_sample": false,
+    "temperature": 0.1
+  },
+  "raw_model_response": "{\n    \"is_risky\": false,\n    \"risk_type\": \"normal\",\n    \"risk_score\": 0.25,\n    \"reason\": \"画面中展示的是影视作品中的武器（如步枪）和人物持枪动作，属于虚构场景，无真实暴力、流血或伤害行为；文字内容为空；背景声音为音乐，无枪声或爆炸声；元数据表明为电影剪辑，符合影视内容范畴。未发现色情、政治、诈骗、赌博、毒品、未成年人风险、自残、隐私泄露、仇恨言论、恐怖极端、低俗擦边、动物虐待、版权侵权或非法交易等违规类型。综合判断为正常影视内容。\",\n    \"risk_subtype\": \"\",\n    \"severity\": \"low\",\n    \"confidence\": 0.95,\n    \"content_context\": \"film\",\n    \"policy_action\": \"pass\",\n    \"evidence_modalities\": [\"visual\"]\n}",
+  "parsed_result": {
+    "is_risky": false,
+    "risk_type": "normal",
+    "risk_score": 0.25,
+    "reason": "画面中展示的是影视作品中的武器（如步枪）和人物持枪动作，属于虚构场景，无真实暴力、流血或伤害行为；文字内容为空；背景声音为音乐，无枪声或爆炸声；元数据表明为电影剪辑，符合影视内容范畴。未发现色情、政治、诈骗、赌博、毒品、未成年人风险、自残、隐私泄露、仇恨言论、恐怖极端、低俗擦边、动物虐待、版权侵权或非法交易等违规类型。综合判断为正常影视内容。",
+    "risk_subtype": "",
+    "severity": "low",
+    "confidence": 0.95,
+    "content_context": "film",
+    "policy_action": "pass",
+    "evidence_modalities": [
+      "visual"
+    ]
+  },
+  "final_audit_result": {
+    "is_risky": false,
+    "risk_type": "normal",
+    "risk_score": 0.25,
+    "reason": "画面中展示的是影视作品中的武器（如步枪）和人物持枪动作，属于虚构场景，无真实暴力、流血或伤害行为；文字内容为空；背景声音为音乐，无枪声或爆炸声；元数据表明为电影剪辑，符合影视内容范畴。未发现色情、政治、诈骗、赌博、毒品、未成年人风险、自残、隐私泄露、仇恨言论、恐怖极端、低俗擦边、动物虐待、版权侵权或非法交易等违规类型。综合判断为正常影视内容。",
+    "risk_subtype": "",
+    "severity": "low",
+    "confidence": 0.95,
+    "content_context": "film",
+    "policy_action": "pass",
+    "evidence_modalities": [
+      "audio_event",
+      "metadata_text",
+      "visual"
+    ],
+    "segment_id": 1,
+    "time_range": "0.0s-6.84s",
+    "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_1_0.00s_6.84s.json"
+  },
+  "error": null,
+  "updated_at": "2026-04-30T01:41:24"
+}

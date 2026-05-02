@@ -1,0 +1,72 @@
+{
+  "video_path": "E:\\Project\\by-project\\streama-system\\ai-service\\temp\\requests\\eb0a1240e44442b2919a3b96c407f327\\y9SYepiMqsdfHHMhEV21\\temp.mp4",
+  "total_segments": 4,
+  "risky_segments": 2,
+  "risk_rate": 0.5,
+  "high_risk_count": 2,
+  "medium_risk_count": 0,
+  "low_risk_count": 2,
+  "risk_type_distribution": {
+    "暴力": 2
+  },
+  "segments": [
+    {
+      "segment_id": 1,
+      "time": "0.27s-13.29s",
+      "text_preview": "他要炫耀局好累呀...",
+      "has_risk_sound": true,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.15,
+        "reason": "画面为第一人称射击游戏场景，包含武器和战斗元素，但无暴力伤害或血腥表现；文字内容为玩家评论‘他要炫耀局好累呀’，属正常游戏语境；声音检测到枪声和爆炸声，但为游戏内音效，非真实暴力或恐怖内容。综合判断无违规内容。",
+        "segment_id": 1,
+        "time_range": "0.27s-13.29s"
+      }
+    },
+    {
+      "segment_id": 2,
+      "time": "25.98s-37.02s",
+      "text_preview": "哎你也肯定有一个问题绝对在天路荒而逃我反而还是你回来太对了防止重点哎你上去画准啊...",
+      "has_risk_sound": true,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.85,
+        "reason": "画面显示第一人称射击游戏界面，包含武器和战斗HUD，符合暴力内容特征；文字内容虽语义不清但含攻击性语句，可能涉及言语暴力；声音检测到枪声和爆炸声，置信度较高，明确指向暴力场景。三方面综合判断为高风险暴力内容。",
+        "segment_id": 2,
+        "time_range": "25.98s-37.02s"
+      }
+    },
+    {
+      "segment_id": 3,
+      "time": "56.82s-75.24s",
+      "text_preview": "mouth...",
+      "has_risk_sound": true,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.85,
+        "reason": "画面显示第一人称视角持刀，场景为游戏对战环境，有远处敌人及爆炸特效；文字内容“mouth”无明显违规；声音检测到枪声和爆炸声（置信度0.62和0.43），符合游戏战斗场景。综合判断为游戏内战斗行为，属于暴力内容，但因是游戏场景且声音置信度中等，风险等级较高，建议拦截。",
+        "segment_id": 3,
+        "time_range": "56.82s-75.24s"
+      }
+    },
+    {
+      "segment_id": 4,
+      "time": "109.53s-116.46s",
+      "text_preview": "我真要509俱orb 0爆一下一摆...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面为第一人称射击游戏场景，显示玩家手持匕首，界面有地图、血量、技能等游戏元素，无暴力、色情或政治敏感内容。文字内容为玩家自嘲式语句，非违规言论。背景声音为游戏内语音，无恐怖或敏感音效。综合判断无违规风险。",
+        "segment_id": 4,
+        "time_range": "109.53s-116.46s"
+      }
+    }
+  ],
+  "decision": "高风险 - 建议拦截",
+  "decision_level": "high"
+}

@@ -1,0 +1,140 @@
+{
+  "video_path": "E:\\Project\\by-project\\streama-system\\ai-service\\temp\\requests\\922bde157e414e51a6eb26c103acc919\\w7oDso9Aa6ombbXmljHK\\temp.mp4",
+  "total_segments": 9,
+  "risky_segments": 0,
+  "risk_rate": 0.0,
+  "high_risk_count": 0,
+  "medium_risk_count": 0,
+  "low_risk_count": 9,
+  "risk_type_distribution": {},
+  "segments": [
+    {
+      "segment_id": 1,
+      "time": "3.96s-10.53s",
+      "text_preview": "爬树的老虎如果你曾刷到过这些高质量卷氧动视频那你一定听说过《风荣》这两个字...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示老虎在树枝上行走，属于正常动物行为，无暴力、恐怖或色情元素；文字提及'高质量圈养动物视频'及《风荣》字样，属普通视频推广用语，无政治敏感或违规表述；背景音乐与语音无异常，未包含暴力、恐怖或敏感内容。综合判断无违规风险。",
+        "segment_id": 1,
+        "time_range": "3.96s-10.53s"
+      }
+    },
+    {
+      "segment_id": 2,
+      "time": "39.15s-56.67s",
+      "text_preview": "毕竟人类对动物智能的了解最先原于和我们最接近的类群嘛但实践了一段时间后科学家发现原来这套理念不只适用于铃掌类农场动物 家庭家处 海生古物类以及后来的两器爬行类甚至还有些鱼类都能用得上这套理念...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示的是鲸头鹳与人类互动的自然场景，无暴力、色情或政治敏感内容；文字内容为科普性语句，讨论动物智能认知，无违规表述；背景音乐与语音为解说性质，无恐怖或敏感音效。整体内容符合科普视频规范，无任何违规风险。",
+        "segment_id": 2,
+        "time_range": "39.15s-56.67s"
+      }
+    },
+    {
+      "segment_id": 3,
+      "time": "78.78s-111.87s",
+      "text_preview": "最簡單的就是從動物的原生鏡集取靈感給他們足夠的活動區域的同時還有根據他們的自然習性提供多種不同的生活方式比如豬鼻舌的豬鼻子是需要挖洞才長出來的那就要給它配置相應的挖掘區數據系的長尾巴是為了纏繞那就要有...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示的是绿树巨蜥在自然仿生环境中攀爬，无暴力、色情或政治敏感内容；文字内容为动物饲养与行为习性科普，无违规表述；背景音乐与语音为解说性质，无恐怖或惊悚音效。整体内容健康、符合科普类视频规范。",
+        "segment_id": 3,
+        "time_range": "78.78s-111.87s"
+      }
+    },
+    {
+      "segment_id": 4,
+      "time": "139.47s-146.91s",
+      "text_preview": "我家就十几平米按动物这标准我是不是住别墅才行其实属于人类的负入我们早就得到了...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示一家四口与宠物狗在户外草坪上行走，背景为住宅，氛围温馨自然，无暴力、色情、政治敏感或恐怖元素。文字内容为口语化调侃，语义模糊且无违规表述，与画面内容无直接关联。背景音乐为轻柔旋律，无异常声音。综合判断无违规内容。",
+        "segment_id": 4,
+        "time_range": "139.47s-146.91s"
+      }
+    },
+    {
+      "segment_id": 5,
+      "time": "151.77s-166.74s",
+      "text_preview": "你不方想象一下如果家很小那能24小时都待在家里吗不会为了找乐子而出门吗如果想一直宅在家里那生活中没有娱乐设置吗对我们除了可以出门外还有网络和娱乐产品作为风容物...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示的是户外山景与人物互动，无暴力、色情或政治敏感内容；文字讨论的是居家生活与娱乐方式，属日常话题，无违规表述；背景音乐与语音为普通对话或解说，无异常音效或敏感语句。整体内容健康、无风险。",
+        "segment_id": 5,
+        "time_range": "151.77s-166.74s"
+      }
+    },
+    {
+      "segment_id": 6,
+      "time": "216.27s-221.31s",
+      "text_preview": "我們的風容物不只遊戲還有豐富的社交活動以及各種美食品牌...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示多人在户外泳池边聚会，佩戴圣诞帽、兔耳朵等节日装扮，手持饮料和吉他，氛围欢乐；文字内容为‘我们的风容物不只游戏还有丰富的社交活动以及各种美食品牌’，语义积极，无违规表述；背景声音为音乐和语音，无暴力、色情、政治敏感或惊悚元素。整体内容健康、无风险。",
+        "segment_id": 6,
+        "time_range": "216.27s-221.31s"
+      }
+    },
+    {
+      "segment_id": 7,
+      "time": "230.64s-333.39s",
+      "text_preview": "人有这么多精神需求可能是因为人脑更为发达需求更为多样但动物的需求即便没有人类这么多样也不可能是灵需求因为倦养环境实在太过稳定如果只是按时吃饭睡觉那选择空间比监狱还小缺少了很多在野外会遇到的不确定性在这...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示的是希拉毒蜥（Heloderma suspectum）的特写，属于动物物种展示，无暴力、色情或政治敏感内容。文字内容讨论动物福利、圈养环境与科研关系，虽涉及专业术语，但无辱骂、歧视或引战言论，且未违反政治敏感性。背景音乐与语音为解说性质，无恐怖或惊悚音效。整体内容符合科普或动物保护主题，无违规风险。",
+        "segment_id": 7,
+        "time_range": "230.64s-333.39s"
+      }
+    },
+    {
+      "segment_id": 8,
+      "time": "343.23s-357.42s",
+      "text_preview": "而对于怎么养动物我相信我和各位四主的目标是一致的那就是都希望他们好好活着不要因为自己不够了解没做好选择而拿只能养五年的标准去养寿命15年以上的动物所以在仔细了解他们之前...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.1,
+        "reason": "画面展示的是平原巨蜥在自然环境中活动，无暴力、恐怖或色情元素；文字内容为关于动物饲养的科普建议，无政治敏感或歧视性言论；背景声音为音乐与解说，无异常音效。整体内容健康、符合科普类视频规范。",
+        "segment_id": 8,
+        "time_range": "343.23s-357.42s"
+      }
+    },
+    {
+      "segment_id": 9,
+      "time": "359.85s-374.70s",
+      "text_preview": "動物不是飛養不可但養了就要做會養的人好以上就是關於豐榮的簡單介紹如果本期讓你有了新的思考歡迎在評論區留言討論我是東青下期還有更精彩的故事和知識到達著你...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "无",
+        "risk_score": 0.05,
+        "reason": "画面展示两只色彩鲜艳的彩虹吸蜜鹦鹉，无暴力、色情或政治敏感内容；文字为科普类引导语，无违规表述；背景音乐与语音为正常解说，无异常音效。整体内容健康、符合规范。",
+        "segment_id": 9,
+        "time_range": "359.85s-374.7s"
+      }
+    }
+  ],
+  "decision": "低风险 - 建议通过",
+  "decision_level": "low"
+}

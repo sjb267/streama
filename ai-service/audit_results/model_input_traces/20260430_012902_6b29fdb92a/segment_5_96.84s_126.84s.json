@@ -1,0 +1,208 @@
+{
+  "trace_session_id": "20260430_012902_6b29fdb92a",
+  "created_at": "2026-04-30T01:37:44",
+  "prompt": "请审核这段视频内容，结合画面、文字、声音三方面信息综合判断是否存在违规内容。\n\n        【时间范围】\n        96.84秒 - 126.84秒\n\n        【画面信息】\n        （见附图中的视频帧，展示该时间段内的关键画面）\n        source_type=speech; representative_frame_count=9\n\n        【文字内容】\n        \"i like to play with fire i like to play with fire i 've always liked to play with fire i like to watch the flames get higher i 've always liked to play with ums... i like to play\"\n\n        【整段语音上下文（非当前窗口专属）】\n        text_scope=window; source_time_range=6.84s-176.37s; \"i'm saying inside the danger gets me high can't help myself got secrets i can't tellalong the smell of gasolinei like the match to taste the heati've always liked to play with youi like to play with firei like to play with firei've always liked to play with firei like the edge my speed goes in redhot pot these flamesmy pleasure is their paini love to watch the castles burnthese golden ashes turn to dirti've always liked to play with firei like to play with firei like to play with firei like to play with firei like to play with firei've always liked to play with firei like to watch the flames get higheri've always liked to play withums...i like to play with firei like to play with fireWeedo\"\n\n        【投稿元数据/标题简介标签文件名】\n        \"title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0\"\n\n        【文本规则预检】\n        无文本规则命中\n\n        【背景声音】\n        背景声音：Music, Music of Latin America, Flamenco\n\n        【长文本上下文】\n        该语音转写来自长语音段，已按30秒视觉窗口拆分；【文字内容】仅表示当前窗口内按词级时间戳命中的文字。【整段语音上下文】不是当前窗口专属证据，只能辅助理解，不能单独用于判定当前窗口违规。\n\n        【审核要求】\n        请基于以上所有信息（画面+文字+声音）综合判断，不要仅依赖单一模态。\n        如果【整段语音上下文（非当前窗口专属）】与【文字内容】不一致，必须以当前时间窗口的【文字内容】、画面、声音为准；整段语音上下文只能辅助理解，不得单独作为当前窗口违规证据。\n        Please also inspect visible text in the image, including subtitles, slogans, cover text, posters, UI text, and watermarks. Treat the title, introduction, tags, cover information, and file name as moderation text too. If there is no speech transcript, still judge the visual content independently.\n\n        需要检测的违规类型包括：\n\n        1. 暴力内容：\n        - 画面：打架、流血、武器、暴力场景\n        - 文字：暴力威胁、血腥描述、伤害言论\n        - 声音：枪声、爆炸声、打斗声、尖叫声、哭声\n        - 语境：影视/游戏/动画中的武器、战斗、爆炸，如果没有真实伤害、血腥、教程、威胁、教唆，通常不要直接拦截，最高建议人工复核\n\n        2. 色情内容：\n        - 画面：裸露、性暗示、不雅动作\n        - 文字：色情描述、露骨言论、性暗示\n        - 声音：暧昧声音、喘息声\n\n        3. 政治敏感：\n        - 画面：敏感标志、敏感人物、敏感场景\n        - 文字：政治敏感言论、违规表述\n        - 声音：敏感口号、政治性声音\n\n        4. 高频平台违规：\n        - fraud：诈骗、刷单、返利、贷款、投资群、加联系方式导流\n        - gambling：赌博、博彩、下注、盘口、赔率、赌场\n        - drug：毒品交易、吸毒展示、制毒或购买暗示\n        - minor_safety：未成年人性风险、诱导、隐私暴露\n        - self_harm：自残自杀表达、教程、鼓励轻生\n        - privacy：身份证、手机号、住址、开盒、人肉、隐私泄露\n        - hate_harassment：辱骂、歧视、仇恨、持续骚扰\n        - terror_extremism：恐怖极端组织、口号、暴恐教程\n        - vulgar：低俗擦边、裸聊、大尺度引流\n        - animal_cruelty：虐待动物\n        - copyright：盗版资源、未授权搬运、全集下载\n        - illegal_trade：枪支、管制刀具、假证、违禁品交易\n\n        【综合评分规则】\n        - policy_action=reject：明确命中平台不可放行场景，risk_score 通常 >=0.78\n        - policy_action=review：上下文不足或影视/游戏暴力等边界场景，risk_score 通常 0.31-0.70\n        - policy_action=pass：未发现违规，risk_score <=0.30\n        - 单独音频枪声/爆炸/尖叫等，如果画面和文字不支持真实风险，应建议 review 而不是 reject\n        - 请给出 content_context：game/film/animation/news/real/unknown\n        - 请给出 evidence_modalities：visual/speech_text/metadata_text/audio_event/text_policy 中命中的证据来源\n\n        【输出格式】\n        请严格按照以下JSON格式输出审核结果，不要有其他文字：\n\n        {\n            \"is_risky\": true/false,\n            \"risk_type\": \"violence/sexual/political/fraud/gambling/drug/minor_safety/self_harm/privacy/hate_harassment/terror_extremism/vulgar/animal_cruelty/copyright/illegal_trade/other/normal\",\n            \"risk_score\": 0.85,\n            \"reason\": \"审核理由，说明画面、文字、声音各自的情况及综合判断依据\",\n            \"risk_subtype\": \"可选：更细场景，如 fictional_weapon_display/scam_or_diversion\",\n            \"severity\": \"low/medium/high/critical\",\n            \"confidence\": 0.0,\n            \"content_context\": \"game/film/animation/news/real/unknown\",\n            \"policy_action\": \"pass/review/reject\",\n            \"evidence_modalities\": [\"visual\", \"speech_text\"]\n        }\n\n        注意：\n        - risk_type 必须只使用上面列出的英文稳定标签；没有风险时使用 normal\n        - risk_score 范围0-1，**分数越高表示风险越高**\n        - 高风险 >0.7 建议拦截\n        - 中风险 0.3-0.7 建议人工复核\n        - 低风险 <0.3 可通过\n        ",
+  "chat_template_text": "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>请审核这段视频内容，结合画面、文字、声音三方面信息综合判断是否存在违规内容。\n\n        【时间范围】\n        96.84秒 - 126.84秒\n\n        【画面信息】\n        （见附图中的视频帧，展示该时间段内的关键画面）\n        source_type=speech; representative_frame_count=9\n\n        【文字内容】\n        \"i like to play with fire i like to play with fire i 've always liked to play with fire i like to watch the flames get higher i 've always liked to play with ums... i like to play\"\n\n        【整段语音上下文（非当前窗口专属）】\n        text_scope=window; source_time_range=6.84s-176.37s; \"i'm saying inside the danger gets me high can't help myself got secrets i can't tellalong the smell of gasolinei like the match to taste the heati've always liked to play with youi like to play with firei like to play with firei've always liked to play with firei like the edge my speed goes in redhot pot these flamesmy pleasure is their paini love to watch the castles burnthese golden ashes turn to dirti've always liked to play with firei like to play with firei like to play with firei like to play with firei like to play with firei've always liked to play with firei like to watch the flames get higheri've always liked to play withums...i like to play with firei like to play with fireWeedo\"\n\n        【投稿元数据/标题简介标签文件名】\n        \"title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0\"\n\n        【文本规则预检】\n        无文本规则命中\n\n        【背景声音】\n        背景声音：Music, Music of Latin America, Flamenco\n\n        【长文本上下文】\n        该语音转写来自长语音段，已按30秒视觉窗口拆分；【文字内容】仅表示当前窗口内按词级时间戳命中的文字。【整段语音上下文】不是当前窗口专属证据，只能辅助理解，不能单独用于判定当前窗口违规。\n\n        【审核要求】\n        请基于以上所有信息（画面+文字+声音）综合判断，不要仅依赖单一模态。\n        如果【整段语音上下文（非当前窗口专属）】与【文字内容】不一致，必须以当前时间窗口的【文字内容】、画面、声音为准；整段语音上下文只能辅助理解，不得单独作为当前窗口违规证据。\n        Please also inspect visible text in the image, including subtitles, slogans, cover text, posters, UI text, and watermarks. Treat the title, introduction, tags, cover information, and file name as moderation text too. If there is no speech transcript, still judge the visual content independently.\n\n        需要检测的违规类型包括：\n\n        1. 暴力内容：\n        - 画面：打架、流血、武器、暴力场景\n        - 文字：暴力威胁、血腥描述、伤害言论\n        - 声音：枪声、爆炸声、打斗声、尖叫声、哭声\n        - 语境：影视/游戏/动画中的武器、战斗、爆炸，如果没有真实伤害、血腥、教程、威胁、教唆，通常不要直接拦截，最高建议人工复核\n\n        2. 色情内容：\n        - 画面：裸露、性暗示、不雅动作\n        - 文字：色情描述、露骨言论、性暗示\n        - 声音：暧昧声音、喘息声\n\n        3. 政治敏感：\n        - 画面：敏感标志、敏感人物、敏感场景\n        - 文字：政治敏感言论、违规表述\n        - 声音：敏感口号、政治性声音\n\n        4. 高频平台违规：\n        - fraud：诈骗、刷单、返利、贷款、投资群、加联系方式导流\n        - gambling：赌博、博彩、下注、盘口、赔率、赌场\n        - drug：毒品交易、吸毒展示、制毒或购买暗示\n        - minor_safety：未成年人性风险、诱导、隐私暴露\n        - self_harm：自残自杀表达、教程、鼓励轻生\n        - privacy：身份证、手机号、住址、开盒、人肉、隐私泄露\n        - hate_harassment：辱骂、歧视、仇恨、持续骚扰\n        - terror_extremism：恐怖极端组织、口号、暴恐教程\n        - vulgar：低俗擦边、裸聊、大尺度引流\n        - animal_cruelty：虐待动物\n        - copyright：盗版资源、未授权搬运、全集下载\n        - illegal_trade：枪支、管制刀具、假证、违禁品交易\n\n        【综合评分规则】\n        - policy_action=reject：明确命中平台不可放行场景，risk_score 通常 >=0.78\n        - policy_action=review：上下文不足或影视/游戏暴力等边界场景，risk_score 通常 0.31-0.70\n        - policy_action=pass：未发现违规，risk_score <=0.30\n        - 单独音频枪声/爆炸/尖叫等，如果画面和文字不支持真实风险，应建议 review 而不是 reject\n        - 请给出 content_context：game/film/animation/news/real/unknown\n        - 请给出 evidence_modalities：visual/speech_text/metadata_text/audio_event/text_policy 中命中的证据来源\n\n        【输出格式】\n        请严格按照以下JSON格式输出审核结果，不要有其他文字：\n\n        {\n            \"is_risky\": true/false,\n            \"risk_type\": \"violence/sexual/political/fraud/gambling/drug/minor_safety/self_harm/privacy/hate_harassment/terror_extremism/vulgar/animal_cruelty/copyright/illegal_trade/other/normal\",\n            \"risk_score\": 0.85,\n            \"reason\": \"审核理由，说明画面、文字、声音各自的情况及综合判断依据\",\n            \"risk_subtype\": \"可选：更细场景，如 fictional_weapon_display/scam_or_diversion\",\n            \"severity\": \"low/medium/high/critical\",\n            \"confidence\": 0.0,\n            \"content_context\": \"game/film/animation/news/real/unknown\",\n            \"policy_action\": \"pass/review/reject\",\n            \"evidence_modalities\": [\"visual\", \"speech_text\"]\n        }\n\n        注意：\n        - risk_type 必须只使用上面列出的英文稳定标签；没有风险时使用 normal\n        - risk_score 范围0-1，**分数越高表示风险越高**\n        - 高风险 >0.7 建议拦截\n        - 中风险 0.3-0.7 建议人工复核\n        - 低风险 <0.3 可通过\n        <|im_end|>\n<|im_start|>assistant\n",
+  "message_payload": {
+    "role": "user",
+    "content": [
+      {
+        "type": "image",
+        "source_path": "keyframes\\571d10fa\\segment_4_contact.jpg",
+        "snapshot_path": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\images\\segment_5_96.84s_126.84s.jpg",
+        "file_name": "segment_4_contact.jpg"
+      },
+      {
+        "type": "text",
+        "text_length": 4307,
+        "text": "请审核这段视频内容，结合画面、文字、声音三方面信息综合判断是否存在违规内容。\n\n        【时间范围】\n        96.84秒 - 126.84秒\n\n        【画面信息】\n        （见附图中的视频帧，展示该时间段内的关键画面）\n        source_type=speech; representative_frame_count=9\n\n        【文字内容】\n        \"i like to play with fire i like to play with fire i 've always liked to play with fire i like to watch the flames get higher i 've always liked to play with ums... i like to play\"\n\n        【整段语音上下文（非当前窗口专属）】\n        text_scope=window; source_time_range=6.84s-176.37s; \"i'm saying inside the danger gets me high can't help myself got secrets i can't tellalong the smell of gasolinei like the match to taste the heati've always liked to play with youi like to play with firei like to play with firei've always liked to play with firei like the edge my speed goes in redhot pot these flamesmy pleasure is their paini love to watch the castles burnthese golden ashes turn to dirti've always liked to play with firei like to play with firei like to play with firei like to play with firei like to play with firei've always liked to play with firei like to watch the flames get higheri've always liked to play withums...i like to play with firei like to play with fireWeedo\"\n\n        【投稿元数据/标题简介标签文件名】\n        \"title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0\"\n\n        【文本规则预检】\n        无文本规则命中\n\n        【背景声音】\n        背景声音：Music, Music of Latin America, Flamenco\n\n        【长文本上下文】\n        该语音转写来自长语音段，已按30秒视觉窗口拆分；【文字内容】仅表示当前窗口内按词级时间戳命中的文字。【整段语音上下文】不是当前窗口专属证据，只能辅助理解，不能单独用于判定当前窗口违规。\n\n        【审核要求】\n        请基于以上所有信息（画面+文字+声音）综合判断，不要仅依赖单一模态。\n        如果【整段语音上下文（非当前窗口专属）】与【文字内容】不一致，必须以当前时间窗口的【文字内容】、画面、声音为准；整段语音上下文只能辅助理解，不得单独作为当前窗口违规证据。\n        Please also inspect visible text in the image, including subtitles, slogans, cover text, posters, UI text, and watermarks. Treat the title, introduction, tags, cover information, and file name as moderation text too. If there is no speech transcript, still judge the visual content independently.\n\n        需要检测的违规类型包括：\n\n        1. 暴力内容：\n        - 画面：打架、流血、武器、暴力场景\n        - 文字：暴力威胁、血腥描述、伤害言论\n        - 声音：枪声、爆炸声、打斗声、尖叫声、哭声\n        - 语境：影视/游戏/动画中的武器、战斗、爆炸，如果没有真实伤害、血腥、教程、威胁、教唆，通常不要直接拦截，最高建议人工复核\n\n        2. 色情内容：\n        - 画面：裸露、性暗示、不雅动作\n        - 文字：色情描述、露骨言论、性暗示\n        - 声音：暧昧声音、喘息声\n\n        3. 政治敏感：\n        - 画面：敏感标志、敏感人物、敏感场景\n        - 文字：政治敏感言论、违规表述\n        - 声音：敏感口号、政治性声音\n\n        4. 高频平台违规：\n        - fraud：诈骗、刷单、返利、贷款、投资群、加联系方式导流\n        - gambling：赌博、博彩、下注、盘口、赔率、赌场\n        - drug：毒品交易、吸毒展示、制毒或购买暗示\n        - minor_safety：未成年人性风险、诱导、隐私暴露\n        - self_harm：自残自杀表达、教程、鼓励轻生\n        - privacy：身份证、手机号、住址、开盒、人肉、隐私泄露\n        - hate_harassment：辱骂、歧视、仇恨、持续骚扰\n        - terror_extremism：恐怖极端组织、口号、暴恐教程\n        - vulgar：低俗擦边、裸聊、大尺度引流\n        - animal_cruelty：虐待动物\n        - copyright：盗版资源、未授权搬运、全集下载\n        - illegal_trade：枪支、管制刀具、假证、违禁品交易\n\n        【综合评分规则】\n        - policy_action=reject：明确命中平台不可放行场景，risk_score 通常 >=0.78\n        - policy_action=review：上下文不足或影视/游戏暴力等边界场景，risk_score 通常 0.31-0.70\n        - policy_action=pass：未发现违规，risk_score <=0.30\n        - 单独音频枪声/爆炸/尖叫等，如果画面和文字不支持真实风险，应建议 review 而不是 reject\n        - 请给出 content_context：game/film/animation/news/real/unknown\n        - 请给出 evidence_modalities：visual/speech_text/metadata_text/audio_event/text_policy 中命中的证据来源\n\n        【输出格式】\n        请严格按照以下JSON格式输出审核结果，不要有其他文字：\n\n        {\n            \"is_risky\": true/false,\n            \"risk_type\": \"violence/sexual/political/fraud/gambling/drug/minor_safety/self_harm/privacy/hate_harassment/terror_extremism/vulgar/animal_cruelty/copyright/illegal_trade/other/normal\",\n            \"risk_score\": 0.85,\n            \"reason\": \"审核理由，说明画面、文字、声音各自的情况及综合判断依据\",\n            \"risk_subtype\": \"可选：更细场景，如 fictional_weapon_display/scam_or_diversion\",\n            \"severity\": \"low/medium/high/critical\",\n            \"confidence\": 0.0,\n            \"content_context\": \"game/film/animation/news/real/unknown\",\n            \"policy_action\": \"pass/review/reject\",\n            \"evidence_modalities\": [\"visual\", \"speech_text\"]\n        }\n\n        注意：\n        - risk_type 必须只使用上面列出的英文稳定标签；没有风险时使用 normal\n        - risk_score 范围0-1，**分数越高表示风险越高**\n        - 高风险 >0.7 建议拦截\n        - 中风险 0.3-0.7 建议人工复核\n        - 低风险 <0.3 可通过\n        "
+      }
+    ],
+    "segment": {
+      "segment_id": 5,
+      "start": 96.84,
+      "end": 126.84,
+      "duration": 30.0,
+      "text_scope": "window"
+    }
+  },
+  "image_path": "keyframes\\571d10fa\\segment_4_contact.jpg",
+  "image_snapshot_path": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\images\\segment_5_96.84s_126.84s.jpg",
+  "segment_context": {
+    "segment_id": 5,
+    "start": 96.84,
+    "end": 126.84,
+    "duration": 30.0,
+    "text": "i like to play with fire i like to play with fire i 've always liked to play with fire i like to watch the flames get higher i 've always liked to play with ums... i like to play",
+    "window_text": "i like to play with fire i like to play with fire i 've always liked to play with fire i like to watch the flames get higher i 've always liked to play with ums... i like to play",
+    "source_transcript_text": "i'm saying inside the danger gets me high can't help myself got secrets i can't tellalong the smell of gasolinei like the match to taste the heati've always liked to play with youi like to play with firei like to play with firei've always liked to play with firei like the edge my speed goes in redhot pot these flamesmy pleasure is their paini love to watch the castles burnthese golden ashes turn to dirti've always liked to play with firei like to play with firei like to play with firei like to play with firei like to play with firei've always liked to play with firei like to watch the flames get higheri've always liked to play withums...i like to play with firei like to play with fireWeedo",
+    "source_text_time_range": "6.84s-176.37s",
+    "text_scope": "window",
+    "source_type": "speech",
+    "metadata_summary": "title=电影-音乐卡点测试3; introduction=电影剪辑，音乐卡点; tags=卡点; cover=cover/20260430/twPtcF4qph5zIAPBEDM5uxFnHEYqRN.png; file_name=189392952-1-208.mp4; file_path=video/20260430/9976639498Scp1I3kBd86SGv0",
+    "sound_summary": "背景声音：Music, Music of Latin America, Flamenco",
+    "text_policy_summary": "无文本规则命中",
+    "text_policy_matches": [],
+    "modalities": [
+      "visual",
+      "speech_text",
+      "metadata_text",
+      "audio_event"
+    ],
+    "long_text_context": true,
+    "has_risk_sound": false,
+    "risk_sounds": [],
+    "sound_events": [
+      {
+        "time": 115.68,
+        "class": "Music",
+        "confidence": 0.9948247671127319,
+        "is_risk": false,
+        "risk_category": null
+      },
+      {
+        "time": 116.16,
+        "class": "Flamenco",
+        "confidence": 0.45448771119117737,
+        "is_risk": false,
+        "risk_category": null
+      },
+      {
+        "time": 116.16,
+        "class": "Music of Latin America",
+        "confidence": 0.30420365929603577,
+        "is_risk": false,
+        "risk_category": null
+      },
+      {
+        "time": 117.24,
+        "class": "Music",
+        "confidence": 0.9658448100090027,
+        "is_risk": false,
+        "risk_category": null
+      }
+    ],
+    "best_frame_path": "keyframes\\571d10fa\\frame_0216_111.36s.jpg",
+    "contact_sheet_path": "keyframes\\571d10fa\\segment_4_contact.jpg",
+    "segment_frames": [
+      {
+        "frame_id": 189,
+        "timestamp": 97.0,
+        "path": "keyframes\\571d10fa\\frame_0189_97.00s.jpg",
+        "frame_count": 2425,
+        "reasons": null
+      },
+      {
+        "frame_id": 198,
+        "timestamp": 103.24,
+        "path": "keyframes\\571d10fa\\frame_0198_103.24s.jpg",
+        "frame_count": 2581,
+        "reasons": [
+          "transition_followup"
+        ]
+      },
+      {
+        "frame_id": 207,
+        "timestamp": 107.08,
+        "path": "keyframes\\571d10fa\\frame_0207_107.08s.jpg",
+        "frame_count": 2677,
+        "reasons": [
+          "transition_followup"
+        ]
+      },
+      {
+        "frame_id": 216,
+        "timestamp": 111.36,
+        "path": "keyframes\\571d10fa\\frame_0216_111.36s.jpg",
+        "frame_count": 2784,
+        "reasons": [
+          "transition_after"
+        ]
+      },
+      {
+        "frame_id": 225,
+        "timestamp": 114.56,
+        "path": "keyframes\\571d10fa\\frame_0225_114.56s.jpg",
+        "frame_count": 2864,
+        "reasons": [
+          "transition_after"
+        ]
+      },
+      {
+        "frame_id": 235,
+        "timestamp": 120.0,
+        "path": "keyframes\\571d10fa\\frame_0235_120.00s.jpg",
+        "frame_count": 3000,
+        "reasons": null
+      },
+      {
+        "frame_id": 244,
+        "timestamp": 122.56,
+        "path": "keyframes\\571d10fa\\frame_0244_122.56s.jpg",
+        "frame_count": 3064,
+        "reasons": [
+          "transition_after"
+        ]
+      },
+      {
+        "frame_id": 253,
+        "timestamp": 124.0,
+        "path": "keyframes\\571d10fa\\frame_0253_124.00s.jpg",
+        "frame_count": 3100,
+        "reasons": null
+      },
+      {
+        "frame_id": 262,
+        "timestamp": 127.16,
+        "path": "keyframes\\571d10fa\\frame_0262_127.16s.jpg",
+        "frame_count": 3179,
+        "reasons": [
+          "transition_followup"
+        ]
+      }
+    ]
+  },
+  "generation_params": {
+    "max_new_tokens": 384,
+    "do_sample": false,
+    "temperature": 0.1
+  },
+  "raw_model_response": "{\n    \"is_risky\": false,\n    \"risk_type\": \"normal\",\n    \"risk_score\": 0.15,\n    \"reason\": \"画面展示的是影视片段中的武器持握、枪械特写及人物在丛林等场景中，属于影视作品中常见的武器展示或战斗准备场景，无真实暴力、血腥或伤害行为。文字内容为重复的歌词片段（'I've always liked to play with fire'等），属于音乐卡点剪辑中的歌词，无色情、政治或违规语义。背景音乐为拉丁美洲弗拉门戈风格，无违规音频事件。整体内容符合影视剪辑与音乐卡点的常规用途，无平台禁止内容。\",\n    \"risk_subtype\": \"\",\n    \"severity\": \"low\",\n    \"confidence\": 0.95,\n    \"content_context\": \"film\",\n    \"policy_action\": \"pass\",\n    \"evidence_modalities\": [\"visual\", \"speech_text\"]\n}",
+  "parsed_result": {
+    "is_risky": false,
+    "risk_type": "normal",
+    "risk_score": 0.15,
+    "reason": "画面展示的是影视片段中的武器持握、枪械特写及人物在丛林等场景中，属于影视作品中常见的武器展示或战斗准备场景，无真实暴力、血腥或伤害行为。文字内容为重复的歌词片段（'I've always liked to play with fire'等），属于音乐卡点剪辑中的歌词，无色情、政治或违规语义。背景音乐为拉丁美洲弗拉门戈风格，无违规音频事件。整体内容符合影视剪辑与音乐卡点的常规用途，无平台禁止内容。",
+    "risk_subtype": "",
+    "severity": "low",
+    "confidence": 0.95,
+    "content_context": "film",
+    "policy_action": "pass",
+    "evidence_modalities": [
+      "visual",
+      "speech_text"
+    ]
+  },
+  "final_audit_result": {
+    "is_risky": false,
+    "risk_type": "normal",
+    "risk_score": 0.15,
+    "reason": "画面展示的是影视片段中的武器持握、枪械特写及人物在丛林等场景中，属于影视作品中常见的武器展示或战斗准备场景，无真实暴力、血腥或伤害行为。文字内容为重复的歌词片段（'I've always liked to play with fire'等），属于音乐卡点剪辑中的歌词，无色情、政治或违规语义。背景音乐为拉丁美洲弗拉门戈风格，无违规音频事件。整体内容符合影视剪辑与音乐卡点的常规用途，无平台禁止内容。",
+    "risk_subtype": "",
+    "severity": "low",
+    "confidence": 0.95,
+    "content_context": "film",
+    "policy_action": "pass",
+    "evidence_modalities": [
+      "audio_event",
+      "metadata_text",
+      "speech_text",
+      "visual"
+    ],
+    "segment_id": 5,
+    "time_range": "96.84s-126.84s",
+    "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_5_96.84s_126.84s.json"
+  },
+  "error": null,
+  "updated_at": "2026-04-30T01:41:24"
+}

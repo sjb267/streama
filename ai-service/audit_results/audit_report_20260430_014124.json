@@ -1,0 +1,244 @@
+{
+  "video_path": "E:\\Project\\by-project\\streama-system\\ai-service\\temp\\requests\\047b95bcf013436a83752b7d28a29c02\\wYn15OnTnkyB7z6wjDS7\\temp.mp4",
+  "total_segments": 8,
+  "risky_segments": 1,
+  "risk_rate": 0.125,
+  "high_risk_count": 0,
+  "medium_risk_count": 1,
+  "low_risk_count": 7,
+  "risk_type_distribution": {
+    "audio_event": 1
+  },
+  "modalities_checked": [
+    "audio",
+    "audio_event",
+    "metadata_text",
+    "speech_text",
+    "vad",
+    "visual"
+  ],
+  "coverage_issues": [],
+  "audit_complete": true,
+  "segments": [
+    {
+      "segment_id": 1,
+      "time": "0.00s-6.84s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.25,
+        "reason": "画面中展示的是影视作品中的武器（如步枪）和人物持枪动作，属于虚构场景，无真实暴力、流血或伤害行为；文字内容为空；背景声音为音乐，无枪声或爆炸声；元数据表明为电影剪辑，符合影视内容范畴。未发现色情、政治、诈骗、赌博、毒品、未成年人风险、自残、隐私泄露、仇恨言论、恐怖极端、低俗擦边、动物虐待、版权侵权或非法交易等违规类型。综合判断为正常影视内容。",
+        "risk_subtype": "",
+        "severity": "low",
+        "confidence": 0.95,
+        "content_context": "film",
+        "policy_action": "pass",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "visual"
+        ],
+        "segment_id": 1,
+        "time_range": "0.0s-6.84s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_1_0.00s_6.84s.json"
+      }
+    },
+    {
+      "segment_id": 2,
+      "time": "6.84s-36.84s",
+      "text_preview": "i 'm saying inside the danger gets me high can 't help myself got secrets i can 't tell al ong the s...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.15,
+        "reason": "画面展示的是影视片段，包含持枪、驾驶、科幻场景等，但无真实暴力、血腥或伤害行为；文字为歌词片段，内容涉及危险、火、秘密等抽象表达，无色情、政治或低俗暗示；背景声音为Skateboard、Speech、Train，无枪声、爆炸或尖叫声等危险音频；整体符合影视卡点剪辑的常规内容，无违规元素。",
+        "risk_subtype": "",
+        "severity": "low",
+        "confidence": 0.95,
+        "content_context": "film",
+        "policy_action": "pass",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "speech_text",
+          "visual"
+        ],
+        "segment_id": 2,
+        "time_range": "6.84s-36.84s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_2_6.84s_36.84s.json"
+      }
+    },
+    {
+      "segment_id": 3,
+      "time": "36.84s-66.84s",
+      "text_preview": "i like to play with fire i like to play with fire i 've always liked to play with fire i like the ed...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.25,
+        "reason": "画面展示的是持枪、战术装备、车辆等影视场景，但无真实暴力、流血或伤害行为；文字内容为歌词式表达，涉及‘play with fire’等比喻性语句，非真实暴力威胁；背景声音为音乐、滑板、车辆声，无枪声或爆炸等危险音效；整体属于影视剪辑卡点，符合平台对非真实暴力内容的容忍度，无违规风险。",
+        "risk_subtype": "",
+        "severity": "low",
+        "confidence": 0.95,
+        "content_context": "film",
+        "policy_action": "pass",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "speech_text",
+          "visual"
+        ],
+        "segment_id": 3,
+        "time_range": "36.84s-66.84s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_3_36.84s_66.84s.json"
+      }
+    },
+    {
+      "segment_id": 4,
+      "time": "66.84s-96.84s",
+      "text_preview": "i love to watch the cast les burn these golden ashes turn to dirt i 've always liked to play with fi...",
+      "has_risk_sound": true,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "audio_event",
+        "risk_score": 0.5,
+        "reason": "画面展示的是影视作品中的枪械、持枪动作及战斗场景，但无真实暴力伤害、血腥或威胁性内容；文字为歌词片段，表达的是对火与毁灭的审美化描述，非暴力或色情语义；声音检测到chant，但无具体歌词内容支持违规，且上下文为音乐卡点剪辑，属于艺术表达范畴。综合判断为非违规内容。 Risk audio event detected by YAMNet: Chant(0.45); fallback to manual review.",
+        "risk_subtype": "riot",
+        "severity": "low",
+        "confidence": 0.92,
+        "content_context": "film",
+        "policy_action": "review",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "speech_text",
+          "visual"
+        ],
+        "segment_id": 4,
+        "time_range": "66.84s-96.84s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_4_66.84s_96.84s.json",
+        "audio_risk_fused": true
+      }
+    },
+    {
+      "segment_id": 5,
+      "time": "96.84s-126.84s",
+      "text_preview": "i like to play with fire i like to play with fire i 've always liked to play with fire i like to wat...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.15,
+        "reason": "画面展示的是影视片段中的武器持握、枪械特写及人物在丛林等场景中，属于影视作品中常见的武器展示或战斗准备场景，无真实暴力、血腥或伤害行为。文字内容为重复的歌词片段（'I've always liked to play with fire'等），属于音乐卡点剪辑中的歌词，无色情、政治或违规语义。背景音乐为拉丁美洲弗拉门戈风格，无违规音频事件。整体内容符合影视剪辑与音乐卡点的常规用途，无平台禁止内容。",
+        "risk_subtype": "",
+        "severity": "low",
+        "confidence": 0.95,
+        "content_context": "film",
+        "policy_action": "pass",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "speech_text",
+          "visual"
+        ],
+        "segment_id": 5,
+        "time_range": "96.84s-126.84s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_5_96.84s_126.84s.json"
+      }
+    },
+    {
+      "segment_id": 6,
+      "time": "126.84s-156.84s",
+      "text_preview": "play with fire i like to play with fire We edo...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.15,
+        "reason": "画面展示的是影视片段中的角色持枪、对峙等场景，但无真实暴力、流血或伤害行为；文字内容为重复的歌词片段（'I've always liked to play with fire'等），属于影视音乐卡点剪辑常见语境，无色情、政治或违规诱导内容；背景为音乐，无枪声、爆炸等危险音效；整体符合影视剪辑卡点测试的常规内容，无平台禁止的违规类型。",
+        "risk_subtype": "",
+        "severity": "low",
+        "confidence": 0.95,
+        "content_context": "film",
+        "policy_action": "pass",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "speech_text",
+          "visual"
+        ],
+        "segment_id": 6,
+        "time_range": "126.84s-156.84s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_6_126.84s_156.84s.json"
+      }
+    },
+    {
+      "segment_id": 7,
+      "time": "156.84s-176.37s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.15,
+        "reason": "画面展示的是影视作品中的武器持握和射击场景，但无真实暴力、流血或伤害行为；文字内容为重复的歌词片段，无色情或政治敏感词；背景音乐为影视配乐，无枪声或爆炸声等真实危险音效。整体属于影视剪辑卡点，符合平台对非真实暴力内容的宽松处理标准，无违规风险。",
+        "risk_subtype": "",
+        "severity": "low",
+        "confidence": 0.95,
+        "content_context": "film",
+        "policy_action": "pass",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "speech_text",
+          "visual"
+        ],
+        "segment_id": 7,
+        "time_range": "156.84s-176.37s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_7_156.84s_176.37s.json"
+      }
+    },
+    {
+      "segment_id": 8,
+      "time": "176.37s-179.51s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.15,
+        "reason": "画面展示的是手持枪械的特写镜头，属于影视作品中常见的武器展示场景，无真实暴力、流血或打斗动作；文字内容为空；背景声音为音乐，无枪声或爆炸声；结合元数据可知为电影剪辑，属于非真实危险场景，符合影视作品中武器展示的常规处理，不构成平台违规。",
+        "risk_subtype": "",
+        "severity": "low",
+        "confidence": 0.95,
+        "content_context": "film",
+        "policy_action": "pass",
+        "evidence_modalities": [
+          "audio_event",
+          "metadata_text",
+          "visual"
+        ],
+        "segment_id": 8,
+        "time_range": "176.37s-179.51s",
+        "model_input_trace_file": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_8_176.37s_179.51s.json"
+      }
+    }
+  ],
+  "model_input_trace_dir": "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a",
+  "model_input_trace_files": [
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_1_0.00s_6.84s.json",
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_2_6.84s_36.84s.json",
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_3_36.84s_66.84s.json",
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_4_66.84s_96.84s.json",
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_5_96.84s_126.84s.json",
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_6_126.84s_156.84s.json",
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_7_156.84s_176.37s.json",
+    "E:\\Project\\by-project\\streama-system\\ai-service\\audit_results\\model_input_traces\\20260430_012902_6b29fdb92a\\segment_8_176.37s_179.51s.json"
+  ],
+  "decision": "中风险 - 建议人工复核",
+  "decision_level": "medium"
+}

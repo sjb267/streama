@@ -1,0 +1,67 @@
+﻿# 忽略不需要的文件夹
+/easylive-web/
+/resources/
+/java/
+/streama-backend/
+
+# 忽略文件
+*.rar
+category_info.sql
+skill.md
+中期报告.md
+
+# 忽略 ai-service 中的特定内容
+ai-service/ai-service-env/
+ai-service/models/
+ai-service/temp/
+ai-service/tests/
+ai-service/__pycache__/
+ai-service/keyframes/
+ai-service/requirements.txt
+ai-service/SERVICE_FLOW.md
+ai-service/test2.py
+ai-service/打瓦.mp4
+ai-service/启动.txt
+ai-service/*.mp4
+ai-service/*.pyc
+
+# 忽略streama-cloud中的特定内容
+streama-cloud/file/
+streama-cloud/*.log
+streama-cloud/temp/
+
+# Python 缓存文件（追加）
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# IntelliJ IDEA 配置（适用于所有项目）
+**/.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Maven 构建产物（Java 项目）
+**/target/
+**/.mvn/
+**/mvnw
+**/mvnw.cmd
+
+# VS Code 配置
+.vscode/
+**/.vscode/
+
+# 前端 node_modules（全局忽略，如果前端在子目录）
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/.codex/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.streama.mappers.AiAuditTaskItemMapper">
+
+    <resultMap id="base_result_map" type="com.streama.entity.po.AiAuditTaskItem">
+        <id column="item_id" property="itemId"/>
+        <result column="task_id" property="taskId"/>
+        <result column="video_id" property="videoId"/>
+        <result column="file_id" property="fileId"/>
+        <result column="file_index" property="fileIndex"/>
+        <result column="upload_id" property="uploadId"/>
+        <result column="file_name" property="fileName"/>
+        <result column="file_path" property="filePath"/>
+        <result column="duration" property="duration"/>
+        <result column="update_type" property="updateType"/>
+        <result column="item_status" property="itemStatus"/>
+        <result column="item_decision" property="itemDecision"/>
+        <result column="risk_score" property="riskScore"/>
+        <result column="risk_tags_json" property="riskTagsJson"/>
+        <result column="hit_segments_json" property="hitSegmentsJson"/>
+        <result column="item_reason" property="itemReason"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insertBatch" parameterType="com.streama.entity.po.AiAuditTaskItem">
+        INSERT INTO ai_audit_task_item (
+            task_id, video_id, file_id, file_index, upload_id, file_name, file_path, duration, update_type,
+            item_status, item_decision, risk_score, risk_tags_json, hit_segments_json, item_reason, created_at, updated_at
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.taskId}, #{item.videoId}, #{item.fileId}, #{item.fileIndex}, #{item.uploadId}, #{item.fileName}, #{item.filePath},
+            #{item.duration}, #{item.updateType}, #{item.itemStatus}, #{item.itemDecision}, #{item.riskScore},
+            #{item.riskTagsJson}, #{item.hitSegmentsJson}, #{item.itemReason}, #{item.createdAt}, #{item.updatedAt}
+            )
+        </foreach>
+    </insert>
+
+    <update id="updateByTaskIdAndFileId" parameterType="com.streama.entity.po.AiAuditTaskItem">
+        UPDATE ai_audit_task_item
+        <set>
+            <if test="bean.videoId != null">video_id = #{bean.videoId},</if>
+            <if test="bean.fileIndex != null">file_index = #{bean.fileIndex},</if>
+            <if test="bean.uploadId != null">upload_id = #{bean.uploadId},</if>
+            <if test="bean.fileName != null">file_name = #{bean.fileName},</if>
+            <if test="bean.filePath != null">file_path = #{bean.filePath},</if>
+            <if test="bean.duration != null">duration = #{bean.duration},</if>
+            <if test="bean.updateType != null">update_type = #{bean.updateType},</if>
+            <if test="bean.itemStatus != null">item_status = #{bean.itemStatus},</if>
+            <if test="bean.itemDecision != null">item_decision = #{bean.itemDecision},</if>
+            <if test="bean.riskScore != null">risk_score = #{bean.riskScore},</if>
+            <if test="bean.riskTagsJson != null">risk_tags_json = #{bean.riskTagsJson},</if>
+            <if test="bean.hitSegmentsJson != null">hit_segments_json = #{bean.hitSegmentsJson},</if>
+            <if test="bean.itemReason != null">item_reason = #{bean.itemReason},</if>
+            <if test="bean.createdAt != null">created_at = #{bean.createdAt},</if>
+            <if test="bean.updatedAt != null">updated_at = #{bean.updatedAt},</if>
+        </set>
+        WHERE task_id = #{taskId} AND file_id = #{fileId}
+    </update>
+
+    <select id="selectByTaskId" resultMap="base_result_map">
+        SELECT *
+        FROM ai_audit_task_item
+        WHERE task_id = #{taskId}
+        ORDER BY file_index ASC
+    </select>
+</mapper>
+

@@ -1,0 +1,68 @@
+{
+  "video_path": "E:\\Project\\by-project\\streama-system\\ai-service\\temp\\requests\\696a7d9e8b8840d1aee890fdefe406d1\\kxqc3Ed7YfiyOoanqrry\\temp.mp4",
+  "total_segments": 3,
+  "risky_segments": 1,
+  "risk_rate": 0.3333333333333333,
+  "high_risk_count": 1,
+  "medium_risk_count": 0,
+  "low_risk_count": 2,
+  "risk_type_distribution": {
+    "violence": 1
+  },
+  "modalities_checked": [
+    "audio",
+    "audio_event",
+    "metadata_text",
+    "speech_text",
+    "vad",
+    "visual"
+  ],
+  "coverage_issues": [],
+  "audit_complete": true,
+  "segments": [
+    {
+      "segment_id": 1,
+      "time": "0.00s-6.84s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "violence",
+        "risk_score": 0.92,
+        "reason": "画面中多次出现持枪人员、枪械特写及对峙场景，符合暴力内容定义；文字部分无违规，但背景音乐为卡点音乐，未提供具体音频内容，但画面本身已构成明显暴力元素；综合判断为高风险暴力内容，建议拦截。",
+        "segment_id": 1,
+        "time_range": "0.0s-6.84s"
+      }
+    },
+    {
+      "segment_id": 2,
+      "time": "6.84s-176.37s",
+      "text_preview": "i like the match to taste the heati've always liked to play with fire i've always liked to play with...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.15,
+        "reason": "画面展示多个持枪、射击、枪战等动作场景，符合动作电影风格；文字为英文台词，内容涉及‘play with fire’‘taste the heat’等表达，属电影对白，无暴力威胁或色情暗示；背景音乐为卡点配乐，无恐怖或政治敏感元素。整体内容为合法影视剪辑，无违规内容。",
+        "segment_id": 2,
+        "time_range": "6.84s-176.37s"
+      }
+    },
+    {
+      "segment_id": 3,
+      "time": "176.37s-179.51s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": false,
+        "risk_type": "normal",
+        "risk_score": 0.1,
+        "reason": "画面展示的是手持枪械的特写镜头，但未出现实际开火、打斗或暴力行为，仅呈现持枪动作，属于电影中常见的紧张氛围镜头。文字内容为空，背景声音为音乐，无任何暴力、色情、政治或恐怖音效。整体内容符合影视片段卡点视频的常规表现，无违规风险。",
+        "segment_id": 3,
+        "time_range": "176.37s-179.51s"
+      }
+    }
+  ],
+  "decision": "高风险 - 建议拦截",
+  "decision_level": "high"
+}

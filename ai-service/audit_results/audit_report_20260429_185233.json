@@ -1,0 +1,152 @@
+{
+  "video_path": "E:\\Project\\by-project\\streama-system\\ai-service\\temp\\requests\\933a8eea78524774b5adb9a72ca6b458\\XVtAtke4RtA1QoyV3ap4\\temp.mp4",
+  "total_segments": 9,
+  "risky_segments": 9,
+  "risk_rate": 1.0,
+  "high_risk_count": 9,
+  "medium_risk_count": 0,
+  "low_risk_count": 0,
+  "risk_type_distribution": {
+    "暴力": 9
+  },
+  "modalities_checked": [
+    "audio",
+    "audio_event",
+    "metadata_text",
+    "speech_text",
+    "vad",
+    "visual"
+  ],
+  "coverage_issues": [],
+  "audit_complete": true,
+  "segments": [
+    {
+      "segment_id": 1,
+      "time": "0.00s-6.84s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.92,
+        "reason": "画面中多次出现持枪人员、枪械特写及对峙场景，符合暴力内容定义；文字部分无违规内容；声音为音乐，无枪声或爆炸声等暴力音效。综合判断为高风险暴力内容，建议拦截。",
+        "segment_id": 1,
+        "time_range": "0.0s-6.84s"
+      }
+    },
+    {
+      "segment_id": 2,
+      "time": "6.84s-176.37s",
+      "text_preview": "i like the match to taste the heati've always liked to play withfirelight i would always like to pla...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.92,
+        "reason": "画面中多次出现持枪、射击、枪械特写及人物处于紧张对峙或被压制状态，符合暴力内容定义；文字中包含“play with fire”“taste the heat”等与暴力行为相关的隐喻性表达，且配合枪械画面强化暴力氛围；背景声音包含“Vehicle, Train”等可能暗示枪战或追逐场景的环境音，综合判断为高风险暴力内容，建议拦截。",
+        "segment_id": 2,
+        "time_range": "6.84s-176.37s"
+      }
+    },
+    {
+      "segment_id": 3,
+      "time": "176.37s-206.37s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.92,
+        "reason": "画面中多次出现手持枪械的特写镜头，人物正在操作枪支，符合暴力内容定义；文字无违规内容；背景声音为音乐，非枪声或爆炸声。综合判断，该片段属于暴力内容，风险等级高，建议拦截。",
+        "segment_id": 3,
+        "time_range": "176.37s-206.37s"
+      }
+    },
+    {
+      "segment_id": 4,
+      "time": "206.37s-236.37s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.92,
+        "reason": "画面中显示人物手持枪械，进行武器操作和瞄准等动作，属于典型暴力内容；虽然无文字描述暴力，但画面本身明确呈现武器使用场景；背景音乐为拉丁美洲风格音乐，与暴力画面无冲突，但结合画面内容，整体构成高风险暴力内容，符合暴力违规标准。",
+        "segment_id": 4,
+        "time_range": "206.37s-236.37s"
+      }
+    },
+    {
+      "segment_id": 5,
+      "time": "236.37s-266.37s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.95,
+        "reason": "画面中显示人物手持枪械，进行武器操作和瞄准等动作，属于典型暴力内容；文字无违规；背景声音为音乐，非暴力音效。综合判断为高风险暴力内容，建议拦截。",
+        "segment_id": 5,
+        "time_range": "236.37s-266.37s"
+      }
+    },
+    {
+      "segment_id": 6,
+      "time": "266.37s-296.37s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.95,
+        "reason": "画面中显示人物手持枪械，进行武器操作和瞄准等动作，属于典型暴力内容；文字无违规；背景声音为音乐，非暴力音效。综合判断为高风险暴力内容，建议拦截。",
+        "segment_id": 6,
+        "time_range": "266.37s-296.37s"
+      }
+    },
+    {
+      "segment_id": 7,
+      "time": "296.37s-326.37s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.95,
+        "reason": "画面中显示人物手持枪械，进行武器操作和瞄准等动作，属于典型暴力内容；文字无违规；背景声音为音乐，非暴力音效。综合判断为高风险暴力内容，建议拦截。",
+        "segment_id": 7,
+        "time_range": "296.37s-326.37s"
+      }
+    },
+    {
+      "segment_id": 8,
+      "time": "326.37s-356.37s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.95,
+        "reason": "画面中显示人物手持枪械，进行武器操作和瞄准等动作，属于典型暴力内容；文字无违规；背景声音为音乐，非暴力音效。综合判断为高风险暴力内容，建议拦截。",
+        "segment_id": 8,
+        "time_range": "326.37s-356.37s"
+      }
+    },
+    {
+      "segment_id": 9,
+      "time": "356.37s-357.64s",
+      "text_preview": "...",
+      "has_risk_sound": false,
+      "audit_result": {
+        "is_risky": true,
+        "risk_type": "暴力",
+        "risk_score": 0.92,
+        "reason": "画面中显示人物手持枪械，且有装有消音器的武器，属于典型暴力武器展示；虽无直接打斗或流血画面，但武器呈现及持枪动作符合暴力内容定义；背景音乐为卡点音乐，无直接暴力音效，但结合画面内容整体构成暴力风险；文字和标题无违规内容，但画面本身已构成高风险暴力内容，综合判断为高风险。",
+        "segment_id": 9,
+        "time_range": "356.37s-357.64s"
+      }
+    }
+  ],
+  "decision": "高风险 - 建议拦截",
+  "decision_level": "high"
+}

@@ -1,0 +1,13 @@
+{
+  "video_path": "E:\\Project\\by-project\\streama-system\\ai-service\\temp\\requests\\703b542e8cd348a18e6e43bc7e0236c2\\nDggQuSRpx7o1ltJGSom\\temp.mp4",
+  "total_segments": 0,
+  "risky_segments": 0,
+  "risk_rate": 0,
+  "high_risk_count": 0,
+  "medium_risk_count": 0,
+  "low_risk_count": 0,
+  "risk_type_distribution": {},
+  "segments": [],
+  "decision": "低风险 - 建议通过",
+  "decision_level": "low"
+}
