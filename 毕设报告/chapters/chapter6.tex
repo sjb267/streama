@@ -71,6 +71,39 @@
 
 由表~\ref{tab:test-plan} 可知，测试范围覆盖了用户端、创作中心、后台管理、视频资源处理和 AI 审核等核心模块。这样的测试方式能更接近真实使用场景，而不是只验证单个接口是否返回成功。
 
+为了验证系统是否形成完整的视频业务闭环，测试不能只检查单个接口是否返回成功，还需要从视频投稿开始，一直验证到视频发布和前台播放。算法~\ref{alg:test-full-video-flow} 给出了视频投稿到发布的核心链路测试流程。
+
+\begin{algorithm}[htbp]
+  \caption{视频投稿到发布的核心链路测试流程}
+  \label{alg:test-full-video-flow}
+  \begin{algorithmic}[1]
+    \Require 测试用户账号，测试视频文件，测试管理员账号
+    \Ensure 核心链路测试结果
+    \State 使用测试用户登录系统
+    \State 调用预上传接口生成上传任务
+    \State 按分片上传测试视频文件
+    \State 提交视频投稿信息
+    \State 检查投稿记录状态是否为“转码中”
+    \State 等待资源服务消费转码队列
+    \State 检查分 P 文件是否生成 HLS 播放资源
+    \State 检查投稿状态是否变为“待审核”
+    \State 检查 AI 审核任务是否创建并发送消息
+    \State 等待 AI 审核结果回写
+    \State 使用管理员账号登录后台
+    \State 查看审核列表和 AI 审核结果
+    \State 执行人工审核通过
+    \State 检查正式视频表和搜索索引是否写入成功
+    \State 在前台搜索并播放该视频
+    \If{上述步骤均符合预期}
+      \State 测试通过
+    \Else
+      \State 记录失败步骤和异常信息
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:test-full-video-flow} 可知，核心链路测试覆盖了上传、转码、AI 审核、人工审核、正式发布、搜索和播放等多个环节。该测试方式比单独测试某个接口更能反映系统整体业务流程是否正确。
+
 \section{核心功能测试}
 \label{sec:core-function-test}
 
@@ -304,6 +337,40 @@ AI 审核流程测试主要验证审核任务能否正常创建、消息能否�
 \end{table}
 
 测试结果表明，系统在异常情况下能够通过状态记录和错误信息降低流程中断影响。虽然毕业设计原型无法覆盖所有生产级异常场景，但已经具备基本的异常处理思路。
+
+除了正常业务链路，系统还需要验证异常场景下的处理效果。异常测试的重点不是让系统永远不出错，而是在错误发生时能够返回合理提示、记录失败状态，并避免业务数据混乱。算法~\ref{alg:test-exception-regression} 展示了异常场景回归测试流程。
+
+\begin{algorithm}[htbp]
+  \caption{异常场景回归测试流程}
+  \label{alg:test-exception-regression}
+  \begin{algorithmic}[1]
+    \Require 异常测试用例集合 $caseList$
+    \Ensure 异常测试结果
+    \For{每个测试用例 $case$ in $caseList$}
+      \State 初始化测试数据和系统状态
+      \If{$case$ 为未登录互动}
+        \State 游客调用评论、弹幕或点赞接口
+        \State 校验系统是否返回未登录提示且未写入行为数据
+      \ElsIf{$case$ 为转码失败}
+        \State 上传异常视频文件或模拟 FFmpeg 失败
+        \State 校验投稿状态是否更新为“转码失败”
+      \ElsIf{$case$ 为 AI 服务不可用}
+        \State 停止 AI 服务后发送审核任务
+        \State 校验审核任务是否保留异常状态或等待处理
+      \ElsIf{$case$ 为普通用户访问后台}
+        \State 使用普通用户令牌访问后台审核接口
+        \State 校验系统是否拒绝访问
+      \ElsIf{$case$ 为外部访问内部接口}
+        \State 直接请求包含 $/innerApi$ 的路径
+        \State 校验网关是否拦截请求
+      \EndIf
+      \State 记录测试结果和异常日志
+    \EndFor
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:test-exception-regression} 可以看出，异常测试覆盖了权限异常、转码异常、AI 服务异常和内部接口访问异常等情况。这些测试有助于验证系统在非正常情况下是否仍能保持状态清晰，并为后续问题定位提供依据。
+
 
 \section{测试结果分析}
 \label{sec:test-result-analysis}

@@ -237,6 +237,41 @@
 
 由图~\ref{fig:interface-boundary} 可以看出，接口隔离的重点不是增加接口数量，而是明确哪些接口可以给前端访问，哪些接口只能在服务内部调用。这样的设计对后台审核、转码回写和内部数据联动等场景比较重要。
 
+在接口边界设计中，网关不仅负责普通请求转发，还需要对内部接口访问进行拦截。为了使该设计逻辑更加清晰，算法~\ref{alg:gateway-route-inner-api} 给出了网关请求路由与内部接口拦截的总体流程。该流程重点体现外部请求、后台请求和内部接口之间的边界控制。
+
+\begin{algorithm}[htbp]
+  \caption{网关请求路由与内部接口拦截流程}
+  \label{alg:gateway-route-inner-api}
+  \begin{algorithmic}[1]
+    \Require 客户端请求 $request$，请求路径 $path$，请求头 $headers$
+    \Ensure 路由结果或拒绝响应
+    \If{$path$ 包含内部接口前缀 $/innerApi$}
+      \State 返回非法访问响应
+      \State 终止本次请求转发
+    \EndIf
+    \If{$path$ 以 $/admin$ 开头}
+      \If{当前请求不是后台登录或公共资源请求}
+        \State 校验管理员令牌 $adminToken$
+        \If{$adminToken$ 无效}
+          \State 返回后台未登录或权限不足响应
+          \State 终止本次请求转发
+        \EndIf
+      \EndIf
+      \State 路由到后台管理服务
+    \ElsIf{$path$ 以 $/web$ 开头}
+      \State 路由到主站业务服务
+    \ElsIf{$path$ 以 $/file$ 开头}
+      \State 路由到资源文件服务
+    \ElsIf{$path$ 以 $/interact$ 开头}
+      \State 路由到互动服务
+    \Else
+      \State 返回路由不存在响应
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:gateway-route-inner-api} 可知，系统在网关层先判断请求是否访问内部接口，如果命中内部接口前缀，则直接拒绝；随后再按照路径前缀转发到对应服务。这样可以在统一入口处完成基本隔离，减少外部用户直接调用内部接口的风险。
+
 \subsection{接口命名与响应规范}
 \label{subsec:api-response-design}
 
@@ -264,6 +299,8 @@
 \end{table}
 
 由表~\ref{tab:interface-design-rule} 可以看出，接口设计不仅是路径设计，还包括响应结构、权限控制和异常处理。接口规范越清楚，后续联调和维护成本就越低。
+
+
 
 \section{数据库总体设计}
 \label{sec:database-overall-design}
@@ -474,6 +511,34 @@ Redis 在系统中主要承担缓存、登录态、上传临时状态和轻量�
 
 由图~\ref{fig:async-task-design} 可以看出，异步任务设计的核心是让耗时操作脱离用户请求主流程。用户提交投稿后，系统可以先记录投稿数据，再由后台逐步完成转码和审核。这样既能减少用户等待，也能让任务失败时有机会记录状态并进行处理。
 
+在异步任务设计中，视频转码结果是后续 AI 审核任务能否创建的前置条件。只有当同一视频下所有分 P 文件都完成转码后，系统才应创建 AI 审核任务；如果存在转码失败文件，则应终止后续审核流程。算法~\ref{alg:transfer-callback-ai-task} 对该过程进行了抽象。
+
+\begin{algorithm}[htbp]
+  \caption{视频转码结果回写与 AI 审核任务创建流程}
+  \label{alg:transfer-callback-ai-task}
+  \begin{algorithmic}[1]
+    \Require 转码回写结果 $transferResult$，视频编号 $videoId$，文件编号 $fileId$
+    \Ensure 投稿状态和 AI 审核任务状态
+    \State 根据 $fileId$ 更新投稿文件表中的文件路径、时长、大小和转码结果
+    \State 查询 $videoId$ 下所有分 P 文件的转码状态
+    \If{存在转码失败的分 P 文件}
+      \State 将投稿主表状态更新为“转码失败”
+      \State 记录失败原因并结束流程
+    \ElsIf{仍存在转码中的分 P 文件}
+      \State 保持投稿主表状态为“转码中”
+      \State 等待剩余文件继续回写
+    \Else
+      \State 汇总所有分 P 文件时长
+      \State 将投稿主表状态更新为“待审核”
+      \State 创建 AI 审核任务主记录
+      \State 为每个分 P 文件创建 AI 审核明细记录
+      \State 发送审核请求消息到审核请求队列
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:transfer-callback-ai-task} 可以看出，转码结果回写不仅用于记录文件处理结果，还会影响后续审核流程是否启动。系统通过检查所有分 P 文件状态，避免部分文件尚未完成或转码失败时提前进入审核阶段，从而保证视频处理流程的完整性。
+
 \subsection{AI 审核消息通道设计}
 \label{subsec:ai-message-channel-design}
 
@@ -648,6 +713,33 @@ AI 审核完成后，系统不会直接发布视频，而是将审核结果保�
 
 由表~\ref{tab:publish-sync-design} 可知，视频正式发布需要多个数据步骤共同完成。投稿数据、正式数据和搜索索引之间的关系必须处理好，否则可能出现视频审核通过但搜索不到，或者搜索到未发布视频等问题。
 
+视频人工审核完成后，系统需要根据审核结果决定后续处理方式。如果管理员驳回投稿，系统只需要保存驳回状态和原因；如果管理员审核通过，系统则需要将投稿态数据转换为正式数据，并同步搜索索引。算法~\ref{alg:manual-audit-publish-sync} 给出了人工审核通过后的视频发布与索引同步流程。
+
+\begin{algorithm}[htbp]
+  \caption{人工审核通过后的视频发布与索引同步流程}
+  \label{alg:manual-audit-publish-sync}
+  \begin{algorithmic}[1]
+    \Require 视频编号 $videoId$，管理员审核状态 $auditStatus$，审核原因 $reason$
+    \Ensure 视频发布结果
+    \If{$auditStatus$ 为“审核不通过”}
+      \State 更新投稿主表状态为“审核不通过”
+      \State 保存驳回原因
+      \State 结束发布流程
+    \EndIf
+    \If{$auditStatus$ 为“审核通过”}
+      \State 查询投稿主表 $video\_info\_post$
+      \State 查询投稿文件表 $video\_info\_file\_post$
+      \State 将投稿主信息写入正式视频表 $video\_info$
+      \State 将投稿分 P 文件写入正式文件表 $video\_info\_file$
+      \State 更新投稿状态为“审核通过”
+      \State 将视频标题、分类、标签、简介和统计字段写入搜索索引
+      \State 清理或登记待删除旧文件
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:manual-audit-publish-sync} 可知，审核通过并不只是修改投稿状态，还需要完成正式数据写入和搜索索引同步。这样才能保证视频既能在前台列表和播放页中展示，也能被用户通过关键词搜索到。
+
 \section{安全与异常处理设计}
 \label{sec:security-exception-design}
 
@@ -670,7 +762,7 @@ AI 审核完成后，系统不会直接发布视频，而是将审核结果保�
     \hline
     游客接口 & 未登录用户 & 允许访问公开视频列表、搜索和详情等基础内容 \\
     用户接口 & 登录用户 & 校验普通用户 Token，允许互动和投稿操作 \\
-    管理接口 & 管理员 & 校验管理员登录态，限制后台功能访问 \\
+    管理接口 & 管理员 & 校验管理员登录态，限.制后台功能访问 \\
     内部接口 & 服务间调用 & 使用内部接口前缀，并由网关阻止外部直接访问 \\
     \hline
   \end{tabular}
@@ -703,9 +795,8 @@ AI 审核完成后，系统不会直接发布视频，而是将审核结果保�
     内部接口被外部访问 & 可能造成越权调用 & 网关直接拦截并返回异常 \\
     \hline
   \end{tabular}
+  信息，更重要的是保证业务状态不混乱。只要状态和错误原因记录清楚，后续就可以通过重试、补偿或人工处理恢复业务流程。
 \end{table}
-
-由表~\ref{tab:exception-design} 可以看出，异常处理不只是简单地返回错误信息，更重要的是保证业务状态不混乱。只要状态和错误原因记录清楚，后续就可以通过重试、补偿或人工处理恢复业务流程。
 
 \section{本章小结}
 \label{sec:chapter4-summary}

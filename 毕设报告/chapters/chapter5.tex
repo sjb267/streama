@@ -103,6 +103,36 @@
 
 由表~\ref{tab:user-auth-control} 可知，认证模块的重点不是让用户“能登录”这么简单，而是让系统根据身份控制不同操作。这样可以避免匿名用户产生无法追踪的互动数据，也能保护后台管理接口不被普通用户访问。
 
+用户登录过程需要同时完成验证码校验、账号密码校验和登录态写入。为了避免登录逻辑分散在多个位置，系统在后端统一处理登录请求，并将登录成功后的用户信息写入缓存。算法~\ref{alg:user-login-checkcode} 展示了用户登录与验证码校验的主要流程。
+
+\begin{algorithm}[htbp]
+  \caption{用户登录与验证码校验流程}
+  \label{alg:user-login-checkcode}
+  \begin{algorithmic}[1]
+    \Require 邮箱 $email$，密码 $password$，验证码键 $checkCodeKey$，用户输入验证码 $checkCode$
+    \Ensure 登录结果
+    \State 根据 $checkCodeKey$ 从 Redis 查询验证码
+    \If{验证码不存在或已过期}
+      \State 返回验证码失效提示
+      \State 终止登录流程
+    \EndIf
+    \If{$checkCode$ 与缓存验证码不一致}
+      \State 返回验证码错误提示
+      \State 终止登录流程
+    \EndIf
+    \State 根据 $email$ 查询用户信息
+    \If{用户不存在或密码校验失败}
+      \State 返回账号或密码错误提示
+      \State 终止登录流程
+    \EndIf
+    \State 生成用户登录令牌 $token$
+    \State 将 $token$ 与用户信息写入 Redis 登录态缓存
+    \State 返回登录成功结果
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:user-login-checkcode} 可以看出，系统先校验验证码，再校验账号密码，最后生成登录令牌并写入缓存。这样的顺序能够减少无效登录请求对数据库查询的影响，也能保证用户登录状态可以在后续请求中被识别。
+
 \section{视频投稿、上传与转码实现}
 \label{sec:upload-transcode-implementation}
 
@@ -134,6 +164,35 @@
 
 由图~\ref{fig:creator-post-flow} 可以看出，投稿流程的关键在于把用户提交行为和后台处理行为分开。用户完成提交后，系统可以立即保存投稿数据，而转码和审核等耗时操作由后台继续完成。
 
+视频投稿接口需要同时处理投稿信息和待转码文件信息。用户提交投稿后，系统不会立即执行视频转码，而是先保存投稿主数据和分 P 文件数据，再将待转码任务写入队列。算法~\ref{alg:post-video-transfer-queue} 展示了该处理过程。
+
+\begin{algorithm}[htbp]
+  \caption{视频投稿保存与待转码队列写入流程}
+  \label{alg:post-video-transfer-queue}
+  \begin{algorithmic}[1]
+    \Require 投稿信息 $postForm$，上传文件列表 $uploadFileList$，当前用户 $userId$
+    \Ensure 投稿保存结果
+    \State 校验标题、封面、分类、标签和上传文件列表
+    \If{投稿参数不合法}
+      \State 返回参数错误提示
+      \State 终止投稿流程
+    \EndIf
+    \State 生成或读取视频编号 $videoId$
+    \State 保存投稿主表记录，状态置为“转码中”
+    \For{每个上传文件 $file$ in $uploadFileList$}
+      \State 生成分 P 文件编号 $fileId$
+      \State 保存投稿文件表记录，转码状态置为“转码处理中”
+      \If{$file$ 是新增或需要重新处理的文件}
+        \State 将 $fileId$、$uploadId$、$videoId$ 写入 Redis 待转码队列
+      \EndIf
+    \EndFor
+    \State 返回投稿保存成功
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:post-video-transfer-queue} 可以看出，投稿保存和视频转码被拆分成两个阶段。投稿接口主要负责保存业务数据和创建待处理任务，真正耗时的视频处理则交给资源服务后台完成。这种处理方式能够减少用户提交投稿时的等待时间。
+
+
 \subsection{视频分片上传实现}
 \label{subsec:chunk-upload-implementation}
 
@@ -162,6 +221,36 @@
 
 由表~\ref{tab:chunk-upload-steps} 可知，分片上传并不只是前端把文件切开，还需要后端配合记录状态和合并分片。只有前后端共同维护上传任务，才能保证大文件上传过程可靠。
 
+视频分片上传的关键是为每次上传生成唯一任务标识，并在服务端持续记录分片上传状态。这样即使某个分片上传失败，也可以只重新上传失败部分。算法~\ref{alg:chunk-upload-process} 对视频分片上传处理流程进行了说明。
+
+\begin{algorithm}[htbp]
+  \caption{视频分片上传处理流程}
+  \label{alg:chunk-upload-process}
+  \begin{algorithmic}[1]
+    \Require 文件名 $fileName$，分片总数 $chunks$，上传分片 $chunk$，分片序号 $chunkIndex$
+    \Ensure 分片上传状态
+    \If{当前请求为预上传请求}
+      \State 生成上传标识 $uploadId$
+      \State 在 Redis 中写入上传任务状态，包括文件名、分片总数和临时目录
+      \State 返回 $uploadId$
+    \Else
+      \State 根据 $uploadId$ 查询上传任务状态
+      \If{上传任务不存在}
+        \State 返回上传任务失效提示
+        \State 终止上传流程
+      \EndIf
+      \State 将当前分片写入临时目录
+      \State 更新 Redis 中的已上传分片记录
+      \If{已上传分片数量等于 $chunks$}
+        \State 标记上传任务为分片上传完成
+      \EndIf
+      \State 返回当前分片上传成功
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:chunk-upload-process} 可知，分片上传并不是简单地把文件切成多个部分，还需要服务端记录上传任务状态。上传任务状态记录清楚后，系统才能判断分片是否完整，并为后续分片合并和视频转码提供依据。
+
 \subsection{视频转码与 HLS 资源生成实现}
 \label{subsec:transcode-hls-implementation}
 
@@ -189,6 +278,37 @@
 \end{figure}
 
 由图~\ref{fig:transcode-flow} 可以看出，转码结果会影响视频后续状态。如果某个分 P 转码失败，视频不能进入审核和发布流程；只有所有分 P 转码完成后，主站服务才会将视频状态更新为待审核。
+
+资源服务是视频转码流程的主要执行者。它从待转码队列中获取任务，合并上传分片，并调用 FFmpeg 生成 HLS 播放资源。算法~\ref{alg:resource-transfer-consume} 展示了资源服务消费转码队列的整体过程。
+
+\begin{algorithm}[htbp]
+  \caption{资源服务消费转码队列流程}
+  \label{alg:resource-transfer-consume}
+  \begin{algorithmic}[1]
+    \Require Redis 待转码队列 $queue:transfer$
+    \Ensure 转码处理结果
+    \While{资源服务处于运行状态}
+      \State 从 $queue:transfer$ 中获取一个待转码任务
+      \If{未获取到任务}
+        \State 等待下一轮轮询
+        \State \textbf{continue}
+      \EndIf
+      \State 根据 $uploadId$ 读取上传临时目录和分片信息
+      \State 合并所有上传分片生成原始视频文件
+      \State 调用 FFmpeg 执行转码和 HLS 切片
+      \If{转码成功}
+        \State 生成 \texttt{.m3u8} 播放列表和媒体分片路径
+        \State 调用主站内部接口回写转码成功结果
+      \Else
+        \State 记录转码失败原因
+        \State 调用主站内部接口回写转码失败结果
+      \EndIf
+    \EndWhile
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:resource-transfer-consume} 可以看出，资源服务以后台任务形式持续消费转码队列。转码成功后，系统生成播放资源并回写结果；转码失败时，则记录失败原因并通知主站服务更新状态。这样可以保证视频处理结果能够被后续业务流程感知。
+
 
 \subsection{转码结果回写与状态控制实现}
 \label{subsec:transcode-status-implementation}
@@ -254,6 +374,42 @@
 系统可以通过用户行为表记录用户编号、视频编号、行为类型和行为时间。用户进入播放页时，后端可以查询当前用户是否已经点赞、收藏或投币，并将状态返回给前端。这样前端可以正确展示按钮状态。
 
 对于播放量、点赞数、收藏数等统计字段，可以根据具体场景选择同步更新或异步更新。高频统计数据如果每次都直接写数据库，可能会增加数据库压力，因此部分统计可以结合缓存或队列处理。数据密集型系统设计中也强调，面对高频数据变更时需要关注可靠性和可扩展性\cite{kleppmann2017ddia}。
+
+用户行为处理需要区分不同行为类型。点赞和收藏通常具有开关性质，用户再次点击时可能表示取消；投币涉及用户资产扣减，需要额外校验余额；评论数和弹幕数则属于统计数据更新。算法~\ref{alg:user-action-process} 对用户互动行为处理流程进行了归纳。
+
+\begin{algorithm}[htbp]
+  \caption{用户互动行为处理流程}
+  \label{alg:user-action-process}
+  \begin{algorithmic}[1]
+    \Require 用户编号 $userId$，视频编号 $videoId$，行为类型 $actionType$，行为数量 $actionCount$
+    \Ensure 用户行为处理结果
+    \State 校验用户是否已登录
+    \If{用户未登录}
+      \State 返回未登录提示
+      \State 终止流程
+    \EndIf
+    \State 查询当前用户对该视频或评论的历史行为
+    \If{$actionType$ 为视频点赞或收藏}
+      \If{用户已执行相同行为}
+        \State 取消原行为并减少对应计数
+      \Else
+        \State 新增用户行为记录并增加对应计数
+      \EndIf
+    \ElsIf{$actionType$ 为投币}
+      \State 校验用户硬币余额是否足够
+      \If{余额不足}
+        \State 返回余额不足提示
+      \Else
+        \State 扣减用户硬币，增加视频投币计数
+      \EndIf
+    \ElsIf{$actionType$ 为评论或弹幕计数}
+      \State 更新视频评论数或弹幕数
+    \EndIf
+    \State 返回最新互动状态和统计数据
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:user-action-process} 可知，用户互动行为不能简单地统一按“新增一条记录”处理。不同互动行为对应不同业务含义，因此系统需要根据行为类型分别处理。这样可以避免重复点赞、余额不足投币和统计数据错误等问题。
 
 \subsection{互动服务与主站服务协作}
 \label{subsec:interaction-web-collaboration}
@@ -382,6 +538,38 @@ AI 审核任务由主站服务创建和编排。当视频所有分 P 文件转�
 
 由表~\ref{tab:ai-task-orchestration} 可知，AI 审核任务不是临时执行的黑盒操作，而是有任务记录、有状态变化、有结果回写的完整流程。这样管理员才能在后台查看审核进度和结果。
 
+AI 审核任务编排的重点是保证任务可追踪。系统在发送审核请求之前，需要先保存审核任务主记录和分 P 明细记录；发送消息后，再根据发送结果更新任务状态。算法~\ref{alg:create-ai-audit-task} 展示了 AI 审核任务创建与请求发送流程。
+
+\begin{algorithm}[htbp]
+  \caption{AI 审核任务创建与请求发送流程}
+  \label{alg:create-ai-audit-task}
+  \begin{algorithmic}[1]
+    \Require 视频编号 $videoId$，分 P 文件集合 $fileList$，来源类型 $sourceType$
+    \Ensure AI 审核任务创建结果
+    \If{$fileList$ 为空}
+      \State 创建取消状态的审核任务
+      \State 结束流程
+    \EndIf
+    \State 生成审核请求编号 $requestId$
+    \State 查询当前视频最新审核版本并生成新版本号
+    \State 创建 AI 审核任务主表记录，状态置为“待处理”
+    \For{每个分 P 文件 $file$ in $fileList$}
+      \State 创建 AI 审核任务明细记录，状态置为“待处理”
+    \EndFor
+    \State 组装审核请求消息，包括 $requestId$、$videoId$、文件路径和分 P 信息
+    \State 将审核请求发送到 RabbitMQ 审核请求队列
+    \If{发送成功}
+      \State 将审核任务状态更新为“审核中”
+    \Else
+      \State 将审核任务状态更新为“失败”
+      \State 记录消息发送失败原因
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:create-ai-audit-task} 可以看出，AI 审核任务并不是直接发送一条消息就结束。系统先建立任务记录，再发送审核请求，这样即使消息发送失败，也可以通过任务状态和失败原因进行排查。
+
+
 \subsection{多模态审核流程实现}
 \label{subsec:multimodal-audit-implementation}
 
@@ -437,6 +625,33 @@ AI 审核结果需要以结构化方式返回。结果不能只包含一段文�
 
 由表~\ref{tab:audit-result-structure} 可知，审核结果的结构化程度会直接影响后台展示效果。如果结果字段设计过于简单，管理员仍然需要重新完整观看视频；如果结果能指出风险标签和命中片段，审核效率就会更高。
 
+AI 审核结果返回后，后端需要将结果拆分为视频级结果和分 P 级结果保存。视频级结果用于后台审核列表展示，分 P 级结果用于审核详情页定位具体风险片段。算法~\ref{alg:ai-result-consume-save} 展示了 AI 审核结果消费与结构化回写过程。
+
+\begin{algorithm}[htbp]
+  \caption{AI 审核结果消费与结构化回写流程}
+  \label{alg:ai-result-consume-save}
+  \begin{algorithmic}[1]
+    \Require AI 审核结果消息 $resultMessage$
+    \Ensure 审核结果保存状态
+    \State 解析 $requestId$、视频级审核建议、风险等级和审核摘要
+    \State 根据 $requestId$ 查询 AI 审核任务主记录
+    \If{任务不存在}
+      \State 记录异常日志并拒绝处理该消息
+      \State 终止流程
+    \EndIf
+    \State 更新任务主表：任务状态、AI 建议、风险等级、摘要、模型信息和完成时间
+    \For{每个分 P 审核结果 $item$ in $resultMessage.items$}
+      \State 根据文件编号查询审核明细记录
+      \State 更新分 P 建议、风险分数、风险标签、命中片段和原因说明
+      \State 将明细状态更新为“已完成”
+    \EndFor
+    \State 清空任务失败原因
+    \State 返回结果保存成功
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:ai-result-consume-save} 可知，AI 审核结果需要结构化保存。只保存一段总体说明无法满足后台审核需要，而视频级结果和分 P 级结果结合起来，才能让管理员既看到整体风险，也能定位具体风险来源。
+
 \subsection{人机协同审核实现}
 \label{subsec:human-ai-audit-implementation}
 
@@ -462,6 +677,42 @@ AI 审核结果需要以结构化方式返回。结果不能只包含一段文�
 \end{table}
 
 由表~\ref{tab:ai-human-responsibility} 可以看出，AI 审核更适合作为辅助工具，而管理员仍是最终审核主体。这样既提高了审核效率，也保留了人工判断的灵活性。
+
+人机协同审核的最后一步是管理员人工确认。AI 审核服务只提供风险提示，不能直接决定视频是否发布。管理员在后台查看视频内容和 AI 审核结果后，可以选择审核通过或驳回。算法~\ref{alg:admin-manual-audit} 展示了管理员人工审核处理流程。
+
+\begin{algorithm}[htbp]
+  \caption{管理员人工审核处理流程}
+  \label{alg:admin-manual-audit}
+  \begin{algorithmic}[1]
+    \Require 视频编号 $videoId$，审核状态 $status$，驳回原因 $reason$
+    \Ensure 人工审核处理结果
+    \State 校验管理员登录状态
+    \If{管理员未登录或权限不足}
+      \State 返回无权限提示
+      \State 终止流程
+    \EndIf
+    \State 查询投稿主表和投稿文件表
+    \If{投稿记录不存在}
+      \State 返回视频不存在提示
+      \State 终止流程
+    \EndIf
+    \If{$status = 4$}
+      \State 更新投稿状态为“审核不通过”
+      \State 保存驳回原因
+      \State 返回审核驳回成功
+    \ElsIf{$status = 3$}
+      \State 更新投稿状态为“审核通过”
+      \State 将投稿主数据写入正式视频表
+      \State 将投稿分 P 文件写入正式文件表
+      \State 写入或更新 Elasticsearch 搜索索引
+      \State 返回审核通过成功
+    \Else
+      \State 返回非法审核状态提示
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:admin-manual-audit} 可以看出，管理员审核是视频发布流程中的最终控制点。审核通过后，系统才会写入正式视频数据并同步搜索索引；审核不通过时，系统只保留投稿状态和驳回原因，视频不会进入前台展示。
 
 \section{本章小结}
 \label{sec:chapter5-summary}

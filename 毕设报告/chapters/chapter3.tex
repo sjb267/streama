@@ -153,8 +153,6 @@
   \end{tabular}
 \end{table}
 
-由表~\ref{tab:user-main-functions} 可以看出，用户端需求具有明显的层次性。浏览和搜索属于开放性需求，播放和详情查看属于内容消费需求，评论弹幕和点赞收藏则属于登录后的互动需求。后续系统设计时，需要根据这些层次合理划分接口权限和页面功能。
-
 \subsection{社区互动需求}
 \label{subsec:interaction-requirements}
 
@@ -219,8 +217,6 @@
     \hline
   \end{tabular}
 \end{table}
-
-由表~\ref{tab:creator-functions} 可知，创作中心不是单一上传页面，而是一个围绕视频投稿生命周期展开的功能模块。它既要支持内容提交，也要支持处理进度反馈和作品管理。
 
 \section{管理端与 AI 审核需求分析}
 \label{sec:admin-ai-requirements}
@@ -287,14 +283,10 @@ AI 审核结果的价值不只在于后台是否收到了结果，还在于管�
   \end{tabular}
 \end{table}
 
-由表~\ref{tab:admin-ai-functions} 可知，AI 审核并不是替代管理端审核，而是增强审核能力。管理员仍然是最终审核者，AI 服务主要负责提前分析视频内容并提供风险提示。
-
 \subsection{视频状态流转需求}
 \label{subsec:video-status-flow-requirements}
 
 为了保证审核流程清晰，系统中视频状态需要明确流转。投稿视频从用户提交开始，通常会依次经历转码中、转码失败、待审核、审核通过或审核不通过等状态。AI 审核结果不直接决定视频最终发布，而是作为管理员人工审核的重要参考。
-
-图~\ref{fig:video-status-flow} 展示了视频投稿与审核状态流转过程。通过该图可以看出，视频正式发布之前需要经过转码和审核两个关键阶段。
 
 \begin{figure}[htbp]
   \centering
@@ -313,6 +305,36 @@ AI 审核结果的价值不只在于后台是否收到了结果，还在于管�
 \end{figure}
 
 由图~\ref{fig:video-status-flow} 可以看出，状态流转是视频发布流程中的核心控制手段。只有当转码完成且审核通过后，视频才能进入正式发布状态。这样既可以避免无法播放的视频进入前台，也可以减少未审核内容直接展示带来的风险。
+
+在视频投稿与审核过程中，状态流转是连接创作者、资源处理服务、AI 审核服务和管理员审核操作的重要依据。为了更清楚地描述该需求，算法~\ref{alg:req-video-status-flow} 对视频投稿状态流转的判断过程进行了抽象。该算法并不涉及具体代码实现，而是从需求层面说明视频在不同处理结果下应进入的状态。
+
+\begin{algorithm}[htbp]
+  \caption{视频投稿状态流转需求判定流程}
+  \label{alg:req-video-status-flow}
+  \begin{algorithmic}[1]
+    \Require 视频投稿记录 $videoPost$，分 P 文件集合 $fileList$，人工审核结果 $auditStatus$
+    \Ensure 视频投稿状态 $status$
+    \If{$fileList$ 中存在转码失败文件}
+      \State 将 $videoPost.status$ 置为“转码失败”
+      \State 记录失败文件和失败原因
+    \ElsIf{$fileList$ 中仍存在转码中的文件}
+      \State 保持 $videoPost.status$ 为“转码中”
+      \State 等待资源服务继续处理
+    \Else
+      \State 将 $videoPost.status$ 置为“待审核”
+      \State 等待 AI 审核结果和管理员人工审核
+    \EndIf
+    \If{$auditStatus$ 为“审核通过”}
+      \State 将 $videoPost.status$ 置为“审核通过”
+      \State 允许视频进入正式发布流程
+    \ElsIf{$auditStatus$ 为“审核不通过”}
+      \State 将 $videoPost.status$ 置为“审核不通过”
+      \State 保存驳回结果，禁止视频进入前台展示
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+由算法~\ref{alg:req-video-status-flow} 可以看出，视频是否能够发布并不只取决于用户是否提交投稿，还取决于视频文件是否转码成功以及管理员是否审核通过。也就是说，视频从投稿到发布是一个多阶段流程，任何一个关键阶段失败，都不能直接进入前台展示。该状态流转规则为后续总体设计和详细实现提供了需求依据。
 
 \section{非功能需求分析}
 \label{sec:non-functional-requirements}
@@ -380,8 +402,6 @@ AI 审核结果的价值不只在于后台是否收到了结果，还在于管�
   \end{tabular}
 \end{table}
 
-由表~\ref{tab:non-functional-requirements} 可知，非功能需求实际上决定了系统能否稳定运行。功能实现只能说明系统“能不能用”，而非功能需求则影响系统“好不好用、稳不稳定、能不能继续扩展”。
-
 \section{系统可行性分析}
 \label{sec:feasibility-analysis}
 
@@ -427,7 +447,7 @@ AI 审核结果的价值不只在于后台是否收到了结果，还在于管�
   \end{tabular}
 \end{table}
 
-由表~\ref{tab:feasibility-summary} 可以看出，本系统虽然涉及视频处理和 AI 审核等复杂内容，但整体仍可以通过开源技术和分阶段开发完成。对于毕业设计而言，重点在于保证核心流程完整，而不是一开始就追求商业平台级别的性能和规模。
+本系统虽然涉及视频处理和 AI 审核等复杂内容，但整体仍可以通过开源技术和分阶段开发完成。对于毕业设计而言，重点在于保证核心流程完整，而不是一开始就追求商业平台级别的性能和规模。
 
 \section{本章小结}
 \label{sec:chapter3-summary}
