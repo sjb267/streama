@@ -1,0 +1,717 @@
+% 第四章 系统总体设计
+% 建议文件路径：chapters/4_chapter4.tex
+% 写作说明：本章基于 GitHub 中《论文目录大纲.md》第四章扩展。
+% 风格说明：学术表达约 70%，自然化说明约 30%；避免重复第二章中的技术介绍。
+% 图表说明：本章中的图均采用 LaTeX 可编译的示意图占位，你也可以后续替换为正式绘图。
+
+\chapter{系统总体设计}
+\label{chap:system-overall-design}
+
+在完成系统需求分析之后，需要进一步对系统整体结构、模块划分、数据组织和核心流程进行设计。总体设计的作用是把第三章中的需求转化为可实现的系统结构，使后续详细设计和编码实现有明确依据。对于在线视频分享平台来说，总体设计不仅要考虑用户端、创作中心和管理端的功能划分，还要考虑视频资源处理、异步审核、数据存储和服务间协作等问题。
+
+本章主要从系统总体架构、分层结构、微服务模块划分、接口与网关设计、数据库设计、缓存与搜索设计、消息通信设计、文件存储设计和核心业务流程设计等方面展开说明。写法上，本章不再重复介绍第二章中的技术概念，而是重点说明这些技术在系统结构中承担的设计职责。
+
+\section{系统总体架构设计}
+\label{sec:overall-architecture-design}
+
+\subsection{总体设计思路}
+\label{subsec:overall-design-idea}
+
+本系统采用前后端分离与微服务相结合的总体架构。前端分为普通用户端和后台管理端，普通用户端主要负责视频浏览、搜索、播放、投稿和互动，后台管理端主要负责分类管理、视频审核和 AI 审核结果查看。后端按照业务职责拆分为网关服务、主站业务服务、后台管理服务、资源文件服务、互动服务、公共模块和基础模块。AI 审核服务作为独立能力服务运行，并通过消息队列与 Java 后端进行协作。
+
+这种设计方式的核心思想是“前端负责交互，后端负责业务，资源服务负责文件，AI 服务负责审核”。如果所有功能都放在一个应用中，视频转码、评论弹幕、后台审核和 AI 分析等逻辑会混在一起，后续维护会比较困难。微服务架构强调围绕业务能力组织服务，这与本系统功能边界较多的特点比较契合\cite{lewis2014microservices}。
+
+从整体设计上看，系统需要保证三个方面：第一，各服务职责要清楚，不能让一个服务承担过多无关功能；第二，服务之间调用关系要明确，避免形成混乱的循环依赖；第三，视频上传、转码、审核和发布流程要能完整闭环。只有满足这些条件，系统才能在功能扩展时保持相对清晰的结构。
+
+\subsection{系统整体架构}
+\label{subsec:system-architecture}
+
+系统整体架构如图~\ref{fig:system-architecture} 所示。外部用户通过浏览器访问普通用户端或后台管理端，所有请求先进入网关服务，再由网关根据请求路径转发到对应业务服务。业务服务之间通过服务注册发现和远程调用进行协作，视频审核相关任务则通过消息队列与 AI 审核服务交互。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.92\textwidth}
+      \centering
+      \textbf{系统总体架构示意}\\[0.8em]
+      普通用户端 / 后台管理端\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      统一网关服务\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      主站业务服务 \quad 后台管理服务 \quad 资源文件服务 \quad 互动服务\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      MySQL \quad Redis \quad Elasticsearch \quad RabbitMQ \quad 文件存储\\[0.4em]
+      $\Updownarrow$\\[0.4em]
+      AI 审核服务
+    \end{minipage}
+  }
+  \caption{系统总体架构图}
+  \label{fig:system-architecture}
+\end{figure}
+
+由图~\ref{fig:system-architecture} 可以看出，系统整体并不是简单的三层结构，而是在传统表现层、业务层和数据层基础上增加了网关层、资源处理能力和 AI 审核能力。网关层负责统一入口和请求分发，业务服务层负责处理具体业务，数据与消息组件负责保存业务数据、缓存状态、搜索索引和异步消息，AI 审核服务则负责内容风险分析。
+
+这样的架构能够让不同类型任务交给不同模块处理。普通业务数据由业务服务处理，视频文件由资源服务处理，用户互动由互动服务处理，审核分析由 AI 服务处理。整体上看，系统结构较清楚，后续如果某个模块需要优化，也可以单独调整。
+
+\subsection{系统分层结构}
+\label{subsec:system-layer-structure}
+
+从架构层次上看，系统可以划分为表现层、网关层、业务服务层、AI 能力层和数据支撑层。分层设计的作用是让不同层次承担不同职责，减少功能混杂。企业应用架构模式中也强调，分层可以帮助系统保持结构清晰，并降低不同关注点之间的耦合\cite{fowler2002poeaa}。
+
+表~\ref{tab:architecture-layers} 对系统各层职责进行了说明。通过该表可以看出，每一层都有相对明确的边界，表现层不直接处理复杂业务，网关层不直接保存业务数据，AI 能力层也不直接决定视频最终发布结果。
+
+\begin{table}[htbp]
+  \centering
+  \caption{系统架构层次及职责}
+  \label{tab:architecture-layers}
+  \begin{tabular}{p{0.20\textwidth}p{0.30\textwidth}p{0.40\textwidth}}
+    \hline
+    \textbf{架构层次} & \textbf{组成部分} & \textbf{主要职责} \\
+    \hline
+    表现层 & 普通用户端、后台管理端 & 提供页面展示、表单输入、视频播放和用户交互入口 \\
+    网关层 & 网关服务 & 统一入口、请求路由、基础过滤和内部接口隔离 \\
+    业务服务层 & 主站、后台、资源、互动服务 & 完成用户、视频、文件、互动和管理业务处理 \\
+    AI 能力层 & AI 审核服务 & 消费审核任务，执行内容分析并返回审核结果 \\
+    数据支撑层 & MySQL、Redis、Elasticsearch、RabbitMQ、文件目录 & 保存业务数据、缓存、搜索索引、消息和媒体资源 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:architecture-layers} 可知，系统分层不是为了形式上复杂，而是为了让职责更容易理解。比如用户访问入口统一交给网关，正式业务数据交给 MySQL，视频搜索交给搜索索引，审核任务交给消息队列和 AI 服务协作处理。这样设计可以减少模块之间的直接依赖。
+
+\subsection{架构设计原则}
+\label{subsec:architecture-principles}
+
+系统总体架构设计遵循以下几个原则。第一，高内聚、低耦合。每个服务尽量只处理自身业务范围内的逻辑，减少跨服务的无关依赖。第二，主流程清晰。视频从上传、转码、审核到发布的流程需要有明确状态，不能让视频在未处理完成时进入正式展示。第三，同步与异步分离。短耗时查询适合同步返回，视频转码和 AI 审核等耗时任务则应放入后台处理。
+
+第四，数据职责清楚。MySQL 保存核心业务数据，Redis 处理缓存和临时状态，Elasticsearch 处理搜索索引，RabbitMQ 负责审核消息通信，文件目录保存封面、视频切片和审核截图。第五，安全边界明确。普通用户接口、后台管理接口和内部服务接口需要区分，防止外部直接访问内部调用路径。
+
+这些原则并不是孤立存在的。比如状态设计同时影响可靠性和用户体验，服务拆分同时影响可扩展性和维护成本。数据密集型系统设计也强调，可靠性、可扩展性和可维护性需要在架构设计阶段综合考虑\cite{kleppmann2017ddia}。
+
+\section{微服务模块划分设计}
+\label{sec:microservice-module-design}
+
+\subsection{模块划分依据}
+\label{subsec:module-splitting-basis}
+
+根据第三章的需求分析，系统主要包括用户访问、视频投稿、资源处理、互动行为、后台审核和 AI 审核等业务。不同业务之间的处理方式差异较大，因此需要按照职责进行服务拆分。领域驱动设计强调围绕业务领域识别边界，这为本系统的模块划分提供了参考\cite{evans2003ddd}。
+
+本系统的后端服务主要包括网关服务、主站业务服务、后台管理服务、资源文件服务和互动服务。此外，公共组件模块和基础实体模块不作为独立运行服务，而是为各业务服务提供通用工具、常量、枚举、实体和查询对象。AI 审核服务则以独立 Python 服务运行，用于处理视频内容风险分析。
+
+这种拆分方式的好处是比较直观。主站服务负责平台核心业务，资源服务负责文件与视频处理，互动服务负责高频用户行为，后台服务负责管理端入口，AI 服务负责审核分析。每个服务的职责都比较明确，后续扩展也更方便。
+
+\subsection{系统服务模块说明}
+\label{subsec:service-module-description}
+
+系统服务模块及其职责如表~\ref{tab:service-modules} 所示。表中列出了各模块名称、服务端口、网关前缀和主要职责。通过该表可以看到，系统并没有将所有功能都放到主站服务中，而是将文件处理、互动行为和后台管理进行了拆分。
+
+\begin{table}[htbp]
+  \centering
+  \caption{系统服务模块及职责}
+  \label{tab:service-modules}
+  \begin{tabular}{p{0.25\textwidth}p{0.13\textwidth}p{0.14\textwidth}p{0.38\textwidth}}
+    \hline
+    \textbf{模块名称} & \textbf{端口} & \textbf{网关前缀} & \textbf{主要职责} \\
+    \hline
+    \texttt{streama-cloud-gateway} & 7071 & -- & API 统一入口、路由转发、内部接口隔离、管理端过滤 \\
+    \texttt{streama-cloud-web} & 7072 & \texttt{/web} & 用户、首页、视频信息、投稿、搜索和 AI 审核任务编排 \\
+    \texttt{streama-cloud-admin} & 7070 & \texttt{/admin} & 管理端登录、分类管理、视频审核、审核结果查询 \\
+    \texttt{streama-cloud-resource} & 7074 & \texttt{/file} & 图片上传、视频分片上传、视频转码和 HLS 资源输出 \\
+    \texttt{streama-cloud-interact} & 7073 & \texttt{/interact} & 评论、弹幕、点赞、收藏、投币等互动行为处理 \\
+    \texttt{streama-cloud-common} & -- & -- & Redis、搜索、异常处理、公共组件和工具类 \\
+    \texttt{streama-cloud-base} & -- & -- & 常量、枚举、基础实体、查询对象和公共 DTO \\
+    \texttt{ai-service} & 7075 & -- & 消费审核任务，执行多模态审核并回传结果 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:service-modules} 可知，主站服务是业务中心，但不是所有功能的承载点。资源服务独立出来后，视频上传、分片合并和转码处理可以集中管理；互动服务独立出来后，评论、弹幕和用户行为不会与视频主业务过度耦合；后台服务独立出来后，管理员接口和普通用户接口也更容易区分。
+
+\subsection{服务调用关系设计}
+\label{subsec:service-call-relation}
+
+各服务之间不是简单的单向调用，而是围绕具体业务场景协作。比如用户提交投稿信息时，主站服务负责保存投稿主数据和分 P 文件数据，并将待转码文件加入队列；资源服务消费队列后完成视频转码，并回写转码结果；当全部分 P 转码完成后，主站服务创建 AI 审核任务并发送消息；AI 服务审核完成后回传结果；管理员最终在后台完成审核操作。
+
+系统主要服务调用关系如表~\ref{tab:service-call-relations} 所示。该表把调用方、被调用方、调用方式和主要用途放在一起，便于分析系统中同步调用与异步通信的边界。
+
+\begin{table}[htbp]
+  \centering
+  \caption{系统主要服务调用关系}
+  \label{tab:service-call-relations}
+  \begin{tabular}{p{0.18\textwidth}p{0.24\textwidth}p{0.18\textwidth}p{0.30\textwidth}}
+    \hline
+    \textbf{调用方} & \textbf{被调用方} & \textbf{调用方式} & \textbf{主要用途} \\
+    \hline
+    网关服务 & 主站/后台/资源/互动服务 & 路由转发 & 将外部请求转发到对应服务 \\
+    主站服务 & 后台服务 & OpenFeign & 获取分类树和分类列表 \\
+    主站服务 & 互动服务 & OpenFeign & 查询用户行为，删除视频时联动互动数据 \\
+    互动服务 & 主站服务 & OpenFeign & 查询视频和用户信息，更新视频计数或用户硬币 \\
+    资源服务 & 主站服务 & OpenFeign & 查询文件信息，转码完成后回写文件状态 \\
+    后台服务 & 主站服务 & OpenFeign & 查询审核列表，执行人工审核和结果查询 \\
+    主站服务 & AI 审核服务 & RabbitMQ & 发送审核请求并接收审核结果 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:service-call-relations} 可以看出，系统中并不是所有交互都采用同一种方式。需要立即返回结果的场景使用同步远程调用，例如后台服务查询审核数据；耗时较长、处理过程不适合阻塞请求的场景使用消息队列，例如 AI 审核任务。OpenFeign 更适合服务间同步调用，RabbitMQ 更适合异步任务通信\cite{springopenfeign}。
+
+\subsection{模块解耦设计}
+\label{subsec:module-decoupling-design}
+
+模块解耦是本系统总体设计中的重点。视频平台中的业务功能跨度较大，如果服务之间依赖过多，就会影响后续维护。例如，互动服务不应直接处理视频投稿逻辑，资源服务也不应直接决定视频是否发布。每个服务只处理自己的职责范围，系统整体才不会乱。
+
+本系统采用三种方式降低模块耦合。第一，通过服务边界区分业务职责，把主站、资源、互动和后台管理拆开。第二，通过内部接口和 Feign 调用封装服务之间的同步协作。第三，通过消息队列处理 AI 审核等异步流程，避免业务服务直接等待 AI 模型推理完成。
+
+图~\ref{fig:service-collaboration} 展示了系统服务协作关系。该图不是细节级调用链，而是从整体上说明各服务之间的协作方向。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.92\textwidth}
+      \centering
+      \textbf{服务协作关系示意}\\[0.8em]
+      网关服务 $\rightarrow$ 主站服务 / 后台服务 / 资源服务 / 互动服务\\[0.4em]
+      资源服务 $\rightarrow$ 主站服务：转码结果回写\\[0.4em]
+      互动服务 $\leftrightarrow$ 主站服务：互动数据与视频计数协作\\[0.4em]
+      后台服务 $\rightarrow$ 主站服务：审核数据查询与人工审核\\[0.4em]
+      主站服务 $\leftrightarrow$ AI 审核服务：审核请求与审核结果消息
+    \end{minipage}
+  }
+  \caption{系统服务协作关系图}
+  \label{fig:service-collaboration}
+\end{figure}
+
+由图~\ref{fig:service-collaboration} 可以看出，主站服务在业务流程中处于核心位置，但它并不直接完成所有工作。资源处理交给资源服务，互动行为交给互动服务，管理端接口由后台服务组织，AI 审核由独立服务完成。这样的设计能在一定程度上减少服务之间的职责混乱。
+
+\section{网关与接口设计}
+\label{sec:gateway-interface-design}
+
+\subsection{网关路由设计}
+\label{subsec:gateway-route-design}
+
+网关是系统对外提供访问的统一入口。普通用户端和后台管理端的请求都先进入网关，再由网关根据请求路径转发到对应服务。这样前端不需要直接维护多个后端服务地址，后端服务也可以隐藏在网关之后。Spring Cloud Gateway 支持基于路径断言和过滤器进行路由控制，因此适合承担统一入口职责\cite{springgatewaydocs}。
+
+本系统网关按照 \texttt{/web}、\texttt{/admin}、\texttt{/file} 和 \texttt{/interact} 四类路径进行路由。不同前缀对应不同服务，整体规则比较直观。表~\ref{tab:gateway-route} 展示了系统主要路由设计。
+
+\begin{table}[htbp]
+  \centering
+  \caption{网关路由设计}
+  \label{tab:gateway-route}
+  \begin{tabular}{p{0.20\textwidth}p{0.28\textwidth}p{0.42\textwidth}}
+    \hline
+    \textbf{请求前缀} & \textbf{目标服务} & \textbf{主要用途} \\
+    \hline
+    \texttt{/web/**} & \texttt{streama-cloud-web} & 用户端业务、视频信息、投稿、搜索等接口 \\
+    \texttt{/admin/**} & \texttt{streama-cloud-admin} & 管理端登录、分类管理、视频审核等接口 \\
+    \texttt{/file/**} & \texttt{streama-cloud-resource} & 图片上传、视频上传、视频资源访问等接口 \\
+    \texttt{/interact/**} & \texttt{streama-cloud-interact} & 评论、弹幕、点赞、收藏、投币等互动接口 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:gateway-route} 可以看出，系统通过路径前缀实现了对服务入口的基本划分。这样的设计比较容易理解，也便于前端按功能模块调用接口。后台管理接口单独使用 \texttt{/admin} 前缀，有助于后续进行管理员过滤和权限控制。
+
+\subsection{外部接口与内部接口划分}
+\label{subsec:external-inner-interface}
+
+系统接口可以分为外部接口和内部接口。外部接口面向前端页面，例如用户登录、视频列表查询、分片上传和评论发送等；内部接口则主要用于服务之间调用，例如资源服务转码完成后回写视频文件状态，后台服务调用主站服务执行审核操作。
+
+为了避免内部接口被外部用户直接访问，系统需要对内部接口进行隔离。内部接口统一使用特定前缀，例如 \texttt{/innerApi}。网关在接收到外部请求时，如果发现请求路径包含内部接口前缀，就直接拒绝访问。这样可以减少内部业务接口暴露带来的安全风险。
+
+图~\ref{fig:interface-boundary} 展示了外部接口与内部接口的边界。图中可以看到，外部请求通过网关访问业务服务，而服务之间的内部接口调用不应直接暴露给外部用户。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.92\textwidth}
+      \centering
+      \textbf{接口边界示意}\\[0.8em]
+      外部用户请求 $\rightarrow$ 网关 $\rightarrow$ 外部业务接口\\[0.5em]
+      服务间调用 $\rightarrow$ 内部接口前缀 $\rightarrow$ 服务内部处理\\[0.5em]
+      网关检测到外部访问内部接口 $\rightarrow$ 拒绝请求
+    \end{minipage}
+  }
+  \caption{外部接口与内部接口边界图}
+  \label{fig:interface-boundary}
+\end{figure}
+
+由图~\ref{fig:interface-boundary} 可以看出，接口隔离的重点不是增加接口数量，而是明确哪些接口可以给前端访问，哪些接口只能在服务内部调用。这样的设计对后台审核、转码回写和内部数据联动等场景比较重要。
+
+\subsection{接口命名与响应规范}
+\label{subsec:api-response-design}
+
+接口命名应尽量保持清晰和一致。用户端接口、后台接口、资源接口和互动接口分别通过不同路径前缀区分，接口内部再按照业务动作组织。这样前端开发和后端维护时都更容易理解。
+
+接口响应也需要保持统一格式。无论是查询成功、操作失败还是权限不足，后端都应返回统一结构，通常包括状态码、提示信息和业务数据。统一响应格式可以减少前端重复判断，也方便统一处理错误提示。
+
+表~\ref{tab:interface-design-rule} 总结了系统接口设计中的主要规则。该表体现了接口设计中“清晰、统一、安全”的基本要求。
+
+\begin{table}[htbp]
+  \centering
+  \caption{接口设计规则}
+  \label{tab:interface-design-rule}
+  \begin{tabular}{p{0.24\textwidth}p{0.66\textwidth}}
+    \hline
+    \textbf{设计项} & \textbf{设计说明} \\
+    \hline
+    路径前缀 & 使用 \texttt{/web}、\texttt{/admin}、\texttt{/file}、\texttt{/interact} 区分服务入口 \\
+    内部接口 & 使用 \texttt{/innerApi} 作为内部接口前缀，并由网关阻断外部访问 \\
+    响应格式 & 返回统一状态码、提示信息和业务数据，减少前端重复处理 \\
+    权限控制 & 普通用户接口和后台管理接口分开校验，避免权限混用 \\
+    错误处理 & 对参数错误、登录失效、权限不足和业务异常返回明确提示 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:interface-design-rule} 可以看出，接口设计不仅是路径设计，还包括响应结构、权限控制和异常处理。接口规范越清楚，后续联调和维护成本就越低。
+
+\section{数据库总体设计}
+\label{sec:database-overall-design}
+
+\subsection{数据库设计原则}
+\label{subsec:database-design-principles}
+
+数据库设计是系统总体设计的重要组成部分。在线视频分享平台涉及的数据类型较多，包括用户信息、分类信息、视频信息、投稿信息、视频文件信息、评论弹幕、用户行为、AI 审核任务和审核明细等。如果数据表设计混乱，后续业务流程很容易出现状态不一致和查询困难的问题。
+
+本系统采用“单库逻辑分域”的设计方式，即当前所有核心业务表保存在同一个 MySQL 数据库中，但按照业务领域划分为不同数据域。这样既便于毕业设计阶段部署和演示，也能体现不同业务之间的数据边界。MySQL 作为关系型数据库，适合保存结构化业务数据和具有明确关系的数据表\cite{mysqldocs}。
+
+数据库设计遵循以下原则。第一，核心业务数据优先保证结构清晰。第二，投稿态数据和正式发布数据分离，避免未审核视频直接进入前台。第三，AI 审核结果采用任务表和明细表保存，便于记录整体结论和分 P 级风险信息。第四，互动数据与视频主数据分离，减少高频行为对视频主表的影响。
+
+\subsection{核心数据表设计}
+\label{subsec:core-table-design}
+
+系统核心数据库表按业务域进行划分，主要包括分类管理、用户域、视频正式数据、投稿数据、互动数据、AI 审核数据和分布式事务数据。表~\ref{tab:core-database-tables} 给出了核心表及其作用。
+
+\begin{table}[htbp]
+  \centering
+  \caption{核心数据库表及作用}
+  \label{tab:core-database-tables}
+  \begin{tabular}{p{0.20\textwidth}p{0.32\textwidth}p{0.38\textwidth}}
+    \hline
+    \textbf{业务域} & \textbf{数据表} & \textbf{主要作用} \\
+    \hline
+    分类管理 & \texttt{category\_info} & 保存视频一级/二级分类、分类编码、图标和排序 \\
+    用户域 & \texttt{user\_info}、\texttt{user\_focus} & 保存用户基础信息、登录相关信息和关注关系 \\
+    视频正式数据 & \texttt{video\_info}、\texttt{video\_info\_file} & 保存审核通过后正式发布的视频主信息和分 P 文件信息 \\
+    投稿数据 & \texttt{video\_info\_post}、\texttt{video\_info\_file\_post} & 保存投稿态视频、转码状态、待审核状态和分 P 文件处理结果 \\
+    互动数据 & \texttt{video\_comment}、\texttt{video\_danmu}、\texttt{user\_action} & 保存评论、弹幕、点赞、收藏、投币等用户行为 \\
+    AI 审核数据 & \texttt{ai\_audit\_task}、\texttt{ai\_audit\_task\_item} & 保存 AI 审核任务、审核版本、风险等级、命中标签和命中片段 \\
+    分布式事务 & \texttt{undo\_log} & 保存 Seata AT 模式下的回滚日志 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:core-database-tables} 可以看出，系统数据表并不是按页面简单划分，而是按业务状态和数据用途划分。比如视频有投稿态表和正式表，AI 审核有任务主表和任务明细表，互动行为也有独立数据表。这样的设计可以让视频生命周期更加清楚。
+
+\subsection{投稿数据与正式数据分离设计}
+\label{subsec:post-official-data-design}
+
+视频数据采用“投稿表”和“正式表”分离的设计。用户提交或编辑视频后，数据先进入 \texttt{video\_info\_post} 和 \texttt{video\_info\_file\_post}。其中，投稿主表保存标题、分类、标签、简介、状态等信息，投稿文件表保存每个分 P 的文件信息、上传标识、转码结果和播放资源路径。
+
+只有当视频完成转码并通过管理员审核后，系统才会将投稿表中的数据复制或同步到正式视频表 \texttt{video\_info} 和 \texttt{video\_info\_file}。正式表中的数据才会被前台列表、搜索和播放功能使用。这样可以有效避免未审核视频或转码失败视频直接出现在用户端。
+
+图~\ref{fig:post-official-data} 展示了投稿数据与正式数据之间的关系。该设计的核心是把“创作者提交的内容”和“平台正式发布的内容”区分开来。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.92\textwidth}
+      \centering
+      \textbf{投稿数据与正式数据关系}\\[0.8em]
+      创作者提交 $\rightarrow$ 投稿主表 / 投稿文件表\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      转码完成 $\rightarrow$ 待审核状态\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      审核通过 $\rightarrow$ 正式视频表 / 正式文件表\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      前台展示、搜索、播放
+    \end{minipage}
+  }
+  \caption{投稿数据与正式数据分离设计图}
+  \label{fig:post-official-data}
+\end{figure}
+
+由图~\ref{fig:post-official-data} 可以看出，投稿数据并不会直接成为公开视频数据。视频必须经过转码和审核后，才会进入正式数据集合。这个设计虽然让数据表数量增加了一些，但能让审核流程更安全，状态也更清楚。
+
+\subsection{AI 审核数据设计}
+\label{subsec:ai-audit-data-design}
+
+AI 审核数据采用主从结构。\texttt{ai\_audit\_task} 保存视频级审核任务，例如请求编号、视频编号、审核版本、任务状态、AI 建议、风险等级和审核摘要等信息；\texttt{ai\_audit\_task\_item} 保存分 P 级审核结果，例如文件编号、风险分数、风险标签、命中片段和原因说明等信息。
+
+采用主从结构的原因是，一个视频可能包含多个分 P 文件，AI 审核既需要给出整条视频的综合结论，也需要保留每个分 P 的风险细节。如果只保存一个总结果，管理员很难定位风险出现在哪个视频片段；如果只保存明细而没有总结果，审核列表展示又不够直观。
+
+表~\ref{tab:ai-audit-data-design} 对 AI 审核数据设计进行了说明。该表展示了审核任务主表和审核明细表之间的职责差异。
+
+\begin{table}[htbp]
+  \centering
+  \caption{AI 审核数据设计}
+  \label{tab:ai-audit-data-design}
+  \begin{tabular}{p{0.25\textwidth}p{0.30\textwidth}p{0.35\textwidth}}
+    \hline
+    \textbf{数据表} & \textbf{数据粒度} & \textbf{主要字段含义} \\
+    \hline
+    \texttt{ai\_audit\_task} & 视频级任务 & 请求编号、视频编号、审核版本、任务状态、AI 建议、风险等级、审核摘要 \\
+    \texttt{ai\_audit\_task\_item} & 分 P 文件级结果 & 文件编号、风险分数、风险标签、命中片段、关键帧路径、原因说明 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:ai-audit-data-design} 可知，AI 审核数据既要满足后台列表展示，也要满足审核详情查看。任务主表适合展示整体结论，任务明细表适合展示具体风险点。这样的设计有利于管理员快速了解风险情况。
+
+\section{缓存、搜索与文件存储设计}
+\label{sec:cache-search-file-design}
+
+\subsection{Redis 缓存与队列设计}
+\label{subsec:redis-design}
+
+Redis 在系统中主要承担缓存、登录态、上传临时状态和轻量队列功能。相比数据库，Redis 更适合保存访问频繁、生命周期较短或需要快速读写的数据。Redis 支持多种数据结构，适合处理验证码、Token、上传状态和队列等场景\cite{redisdocs}。
+
+系统定义了较为清晰的 Redis 键空间，不同业务前缀对应不同数据用途。这样做的好处是便于维护和排查问题，避免多个模块随意使用 Redis 键导致冲突。表~\ref{tab:redis-key-design} 展示了系统主要 Redis 键及其用途。
+
+\begin{table}[htbp]
+  \centering
+  \caption{Redis 键空间设计}
+  \label{tab:redis-key-design}
+  \begin{tabular}{p{0.34\textwidth}p{0.24\textwidth}p{0.32\textwidth}}
+    \hline
+    \textbf{Redis 键} & \textbf{数据含义} & \textbf{使用场景} \\
+    \hline
+    \texttt{streama:checkcode:*} & 验证码 & 用户端和管理端登录注册校验 \\
+    \texttt{streama:token:web:*} & 普通用户登录态 & 普通用户认证与自动登录 \\
+    \texttt{streama:token:admin:*} & 管理员登录态 & 管理端认证 \\
+    \texttt{streama:category:list:} & 分类缓存 & 前台分类展示和投稿分类选择 \\
+    \texttt{streama:uploading:*} & 上传临时状态 & 保存 uploadId、分片数量、上传进度和临时路径 \\
+    \texttt{streama:file:list:del:*} & 待删除文件队列 & 编辑视频后延迟删除旧文件 \\
+    \texttt{streama:queue:transfer:} & 待转码文件队列 & 资源服务消费后执行转码 \\
+    \texttt{streama:queue:video:play:} & 播放计数队列 & 异步累加播放量 \\
+    \texttt{streama:video:search:} & 搜索热词集合 & 统计搜索关键词热度 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:redis-key-design} 可以看出，Redis 并不只用于缓存分类这类静态数据，还用于保存上传临时状态和转码队列。对于视频上传这样的长流程来说，Redis 中的临时状态可以帮助系统记录当前上传进度；对于转码任务来说，Redis 队列可以让资源服务在后台逐个消费任务。
+
+\subsection{搜索索引设计}
+\label{subsec:search-index-design}
+
+视频搜索是在线视频平台的重要功能。用户可能根据标题、标签、简介或分类查找视频，如果只依赖 MySQL 模糊查询，搜索效率和相关性排序都不够理想。因此，系统采用 Elasticsearch 建立视频搜索索引。Elasticsearch 适合全文检索和相关性排序，可以为内容搜索提供更好的支持\cite{elasticsearchdocs}。
+
+系统默认索引名称为 \texttt{streama\_video}。视频审核通过或更新后，系统将视频标题、标签、简介、分类、播放数、弹幕数、收藏数等信息写入索引。用户搜索时，系统优先查询 Elasticsearch，并根据关键词匹配和排序条件返回结果。
+
+表~\ref{tab:search-index-fields} 展示了视频搜索索引中建议保存的主要字段。该表体现了搜索索引与正式视频数据之间的关系。
+
+\begin{table}[htbp]
+  \centering
+  \caption{视频搜索索引字段设计}
+  \label{tab:search-index-fields}
+  \begin{tabular}{p{0.22\textwidth}p{0.28\textwidth}p{0.40\textwidth}}
+    \hline
+    \textbf{字段类别} & \textbf{字段示例} & \textbf{设计用途} \\
+    \hline
+    基础信息 & 视频编号、标题、封面、作者编号 & 用于搜索结果展示和视频跳转 \\
+    分类信息 & 一级分类、二级分类、标签 & 用于分类筛选和标签匹配 \\
+    文本信息 & 简介、标题、标签文本 & 用于关键词检索和相关性匹配 \\
+    统计信息 & 播放量、弹幕数、收藏数、发布时间 & 用于排序和热度展示 \\
+    状态信息 & 发布状态、审核状态 & 保证只检索正式发布内容 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:search-index-fields} 可以看出，搜索索引保存的是面向检索和展示的冗余数据，而不是替代数据库中的正式业务数据。MySQL 保存权威数据，Elasticsearch 保存检索数据，两者通过视频发布和更新流程保持同步。
+
+\subsection{文件存储目录设计}
+\label{subsec:file-storage-design}
+
+视频分享平台除了保存数据库记录，还需要保存大量文件资源，包括封面图片、上传分片、转码后视频、HLS 切片和 AI 审核截图。文件存储设计如果不清晰，后续查找文件和清理临时文件都会比较麻烦。
+
+本系统采用本地文件目录方式保存媒体资源。该方式实现简单，适合毕业设计本地运行和演示。根目录为项目配置中的文件目录，下级目录按文件用途进行划分。表~\ref{tab:file-storage-design} 展示了主要文件目录设计。
+
+\begin{table}[htbp]
+  \centering
+  \caption{文件存储目录设计}
+  \label{tab:file-storage-design}
+  \begin{tabular}{p{0.24\textwidth}p{0.30\textwidth}p{0.36\textwidth}}
+    \hline
+    \textbf{目录} & \textbf{保存内容} & \textbf{说明} \\
+    \hline
+    \texttt{cover/} & 视频封面和图片资源 & 用于前台视频卡片和详情页展示 \\
+    \texttt{temp/} & 上传分片临时文件 & 用于保存未合并的视频分片 \\
+    \texttt{video/} & 转码后视频资源 & 保存 HLS 播放列表和视频切片 \\
+    \texttt{audit-snapshot/} & AI 审核截图 & 保存命中风险片段的关键帧截图 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:file-storage-design} 可知，文件目录按照资源用途划分，能够减少不同类型文件混放的问题。后续如果系统部署到多实例环境，可以将本地文件存储替换为对象存储，例如 MinIO 或云存储服务。当前阶段采用本地目录，更适合开发和演示。
+
+\section{消息通信与异步任务设计}
+\label{sec:message-async-design}
+
+\subsection{异步任务总体设计}
+\label{subsec:async-task-overall-design}
+
+视频平台中有些任务处理时间较长，不能让用户请求一直等待。比如视频转码需要读取文件、调用 FFmpeg、生成切片；AI 审核需要提取音频、抽取关键帧、执行模型分析。这些任务都适合设计为异步流程。
+
+本系统中的异步任务主要包括视频转码任务和 AI 审核任务。视频转码任务通过 Redis 队列进行处理，资源服务从队列中取出任务后执行转码；AI 审核任务通过 RabbitMQ 进行处理，主站服务发送审核请求，AI 服务消费消息并返回结果。消息队列能够让生产者和消费者解耦，适合处理跨服务异步任务\cite{rabbitmqdocs}。
+
+图~\ref{fig:async-task-design} 展示了系统异步任务设计。该图说明转码任务和审核任务虽然都属于异步处理，但使用的协作方式并不完全相同。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.92\textwidth}
+      \centering
+      \textbf{异步任务设计示意}\\[0.8em]
+      投稿提交 $\rightarrow$ Redis 转码队列 $\rightarrow$ 资源服务执行视频转码\\[0.5em]
+      转码完成 $\rightarrow$ 创建 AI 审核任务 $\rightarrow$ RabbitMQ 审核请求队列\\[0.5em]
+      AI 服务消费请求 $\rightarrow$ 执行多模态审核 $\rightarrow$ RabbitMQ 结果队列\\[0.5em]
+      主站服务消费结果 $\rightarrow$ 保存审核数据 $\rightarrow$ 等待管理员复核
+    \end{minipage}
+  }
+  \caption{异步任务总体设计图}
+  \label{fig:async-task-design}
+\end{figure}
+
+由图~\ref{fig:async-task-design} 可以看出，异步任务设计的核心是让耗时操作脱离用户请求主流程。用户提交投稿后，系统可以先记录投稿数据，再由后台逐步完成转码和审核。这样既能减少用户等待，也能让任务失败时有机会记录状态并进行处理。
+
+\subsection{AI 审核消息通道设计}
+\label{subsec:ai-message-channel-design}
+
+AI 审核任务采用 RabbitMQ 进行消息通信。主站服务作为审核请求生产者，将视频编号、分 P 文件信息、资源路径和任务编号等信息发送到审核请求队列；AI 服务作为消费者，从队列中获取任务并执行审核；审核完成后，AI 服务将结果发送到审核结果队列，主站服务再消费结果并写入数据库。
+
+表~\ref{tab:ai-message-channel} 展示了 AI 审核消息通道设计。通过该表可以看出，系统为请求消息和结果消息分别设计了队列和路由键，并保留死信队列用于处理异常消息。
+
+\begin{table}[htbp]
+  \centering
+  \caption{AI 审核消息通道设计}
+  \label{tab:ai-message-channel}
+  \begin{tabular}{p{0.24\textwidth}p{0.36\textwidth}p{0.30\textwidth}}
+    \hline
+    \textbf{消息组件} & \textbf{名称} & \textbf{作用} \\
+    \hline
+    Exchange & \texttt{streama.audit.exchange} & AI 审核请求和结果共用交换机 \\
+    请求队列 & \texttt{streama.audit.request.queue} & AI 服务消费审核请求 \\
+    请求路由键 & \texttt{audit.video.request} & 主站服务发送审核请求时使用 \\
+    结果队列 & \texttt{streama.audit.result.queue} & 主站服务消费审核结果 \\
+    结果路由键 & \texttt{audit.video.result} & AI 服务发送审核结果时使用 \\
+    请求死信队列 & \texttt{streama.audit.request.dlq} & 保存请求处理失败的消息 \\
+    结果死信队列 & \texttt{streama.audit.result.dlq} & 保存结果处理失败的消息 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:ai-message-channel} 可知，AI 审核流程不是简单的单向通知，而是包含请求投递、任务消费、结果回传和失败处理。这样设计可以增强审核流程的可靠性。即使 AI 服务暂时不可用，请求消息也可以保留在队列中，等待服务恢复后继续处理。
+
+\subsection{任务状态与异常处理设计}
+\label{subsec:task-status-exception-design}
+
+异步任务必须有明确状态。视频转码任务需要记录是否转码成功，AI 审核任务需要记录是否待处理、处理中、成功或失败。如果没有状态记录，系统很难判断任务是否完成，也无法在异常情况下进行恢复。
+
+AI 审核任务状态一般可以设计为待处理、处理中、审核完成和处理失败。任务发送成功后，状态从待处理变为处理中；AI 返回结果后，状态更新为完成；如果消息发送失败或结果处理失败，则记录失败状态和错误原因。微服务模式中也强调，长流程任务应通过状态记录和补偿机制提高可追踪性\cite{richardson2018microservices}。
+
+表~\ref{tab:task-status-design} 展示了异步任务状态设计。该表不仅适用于 AI 审核，也可以作为视频转码等后台任务的状态设计参考。
+
+\begin{table}[htbp]
+  \centering
+  \caption{异步任务状态设计}
+  \label{tab:task-status-design}
+  \begin{tabular}{p{0.20\textwidth}p{0.28\textwidth}p{0.42\textwidth}}
+    \hline
+    \textbf{状态} & \textbf{含义} & \textbf{处理说明} \\
+    \hline
+    待处理 & 任务已创建但尚未开始 & 等待队列投递或等待消费者处理 \\
+    处理中 & 任务已投递并正在处理 & 记录处理开始时间，避免重复处理 \\
+    处理成功 & 任务完成并已返回结果 & 写入结果数据，更新业务状态 \\
+    处理失败 & 任务执行或消息处理异常 & 记录失败原因，必要时转人工处理或重试 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:task-status-design} 可以看出，任务状态不是简单的辅助字段，而是长流程业务的控制依据。状态设计清楚后，系统才能在转码失败、审核失败或消息异常时进行定位和处理。
+
+\section{核心业务流程设计}
+\label{sec:core-business-process-design}
+
+\subsection{视频投稿与上传流程}
+\label{subsec:video-post-upload-process}
+
+视频投稿流程从创作者选择视频开始。由于视频文件通常较大，系统采用预上传和分片上传方式。创作者选择文件后，先向资源服务申请上传任务，资源服务生成上传标识并记录上传状态；随后前端按分片上传视频文件，资源服务将分片保存到临时目录；所有分片上传完成后，系统再根据上传标识进行后续处理。
+
+视频投稿不仅包含文件上传，还包含投稿信息保存。创作者需要填写标题、分类、标签、简介和封面等内容。文件上传完成后，主站服务保存投稿主表和分 P 文件表，并将待转码文件加入转码队列。这样，投稿信息保存和视频转码处理就被拆成了两个阶段。
+
+图~\ref{fig:video-post-upload-flow} 展示了视频投稿与上传流程。该流程体现了视频上传、投稿保存和转码任务创建之间的关系。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.92\textwidth}
+      \centering
+      \textbf{视频投稿与上传流程}\\[0.8em]
+      创作者选择视频 $\rightarrow$ 申请预上传并获取 uploadId\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      分片上传视频文件 $\rightarrow$ 资源服务保存临时分片\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      上传封面并填写投稿信息 $\rightarrow$ 主站服务保存投稿数据\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      写入待转码队列 $\rightarrow$ 等待资源服务处理
+    \end{minipage}
+  }
+  \caption{视频投稿与上传流程图}
+  \label{fig:video-post-upload-flow}
+\end{figure}
+
+由图~\ref{fig:video-post-upload-flow} 可以看出，投稿流程不是一次性完成的操作，而是由预上传、分片上传、信息提交和转码队列写入组成。这样的设计可以降低大文件上传失败的影响，也能让视频转码在后台继续处理。
+
+\subsection{视频转码与状态回写流程}
+\label{subsec:video-transcode-status-process}
+
+视频上传完成后，资源服务需要对视频进行合并和转码处理。资源服务从 Redis 转码队列中取出待处理文件，合并上传分片，然后调用 FFmpeg 将原始视频转换为适合在线播放的 HLS 资源。FFmpeg 支持多种音视频处理操作，适合用于视频转码和切片\cite{ffmpegdocs}。
+
+转码完成后，资源服务通过内部接口通知主站服务更新文件状态。如果某个分 P 转码失败，系统应将对应状态记录为失败；如果所有分 P 都转码成功，则视频进入待审核状态。这样做的好处是能够准确反映每个视频文件的处理结果，而不是简单地用一个总状态覆盖所有情况。
+
+表~\ref{tab:video-status-design} 展示了视频投稿过程中的主要状态。通过状态设计，系统可以清楚地知道视频当前处于哪个阶段。
+
+\begin{table}[htbp]
+  \centering
+  \caption{视频投稿状态设计}
+  \label{tab:video-status-design}
+  \begin{tabular}{p{0.22\textwidth}p{0.36\textwidth}p{0.32\textwidth}}
+    \hline
+    \textbf{状态} & \textbf{含义} & \textbf{后续处理} \\
+    \hline
+    转码中 & 视频文件已提交，正在等待或执行转码 & 等待资源服务处理 \\
+    转码失败 & 至少一个分 P 文件转码失败 & 记录失败原因，提示创作者处理 \\
+    待审核 & 所有分 P 文件转码完成 & 创建或等待 AI 审核与人工审核 \\
+    审核通过 & 管理员确认视频可以发布 & 写入正式视频表和搜索索引 \\
+    审核不通过 & 管理员驳回投稿 & 保留驳回状态和原因 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:video-status-design} 可以看出，视频状态贯穿了投稿、转码和审核过程。状态字段不仅是展示给创作者看的内容，也是系统控制后续流程的重要依据。
+
+\subsection{AI 审核与人工复核流程}
+\label{subsec:ai-manual-audit-process}
+
+当视频全部转码完成后，系统会创建 AI 审核任务并发送审核请求。AI 审核服务收到请求后，对视频进行音频提取、语音识别、声音事件分析、关键帧抽取和多模态理解，最后返回审核建议、风险等级、风险标签和命中片段等结果。语音识别、声音事件识别和视觉语言模型可以分别从语音、声音和画面角度辅助内容审核\cite{radford2023whisper}。
+
+AI 审核完成后，系统不会直接发布视频，而是将审核结果保存到数据库，供管理员在后台查看。管理员进入审核详情页后，可以查看视频内容、投稿信息和 AI 风险提示，然后做出通过或驳回决定。这样的设计可以兼顾审核效率和人工判断的准确性。
+
+图~\ref{fig:audit-process-design} 展示了 AI 审核与人工复核流程。该流程说明 AI 服务主要承担初步分析任务，管理员负责最终发布决策。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.92\textwidth}
+      \centering
+      \textbf{AI 审核与人工复核流程}\\[0.8em]
+      转码完成 $\rightarrow$ 创建 AI 审核任务 $\rightarrow$ 发送审核请求\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      AI 服务分析视频内容 $\rightarrow$ 返回风险等级、标签和原因\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      后台展示审核结果 $\rightarrow$ 管理员人工复核\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      审核通过：正式发布 \quad 审核驳回：保持投稿态并记录原因
+    \end{minipage}
+  }
+  \caption{AI 审核与人工复核流程图}
+  \label{fig:audit-process-design}
+\end{figure}
+
+由图~\ref{fig:audit-process-design} 可以看出，AI 审核结果并不是最终审核结论，而是为管理员提供参考。这样可以避免 AI 模型误判直接影响内容发布，也符合人机协同审核的设计思路。
+
+\subsection{视频发布与搜索同步流程}
+\label{subsec:publish-search-sync-process}
+
+管理员审核通过后，系统需要将投稿态数据转换为正式发布数据。具体来说，主站服务将 \texttt{video\_info\_post} 和 \texttt{video\_info\_file\_post} 中的数据同步到 \texttt{video\_info} 和 \texttt{video\_info\_file}。同步完成后，视频才可以在前台列表和播放页中展示。
+
+与此同时，系统还需要将视频信息写入 Elasticsearch 索引。搜索索引中保存标题、标签、简介、分类和统计字段，便于用户进行关键词搜索。正式数据和搜索索引之间需要保持基本一致，如果视频被删除或更新，也需要同步更新索引。
+
+表~\ref{tab:publish-sync-design} 展示了视频发布后的数据同步设计。该表可以看出，审核通过并不是流程结束，还需要完成正式表写入和搜索索引同步。
+
+\begin{table}[htbp]
+  \centering
+  \caption{视频发布与搜索同步设计}
+  \label{tab:publish-sync-design}
+  \begin{tabular}{p{0.24\textwidth}p{0.32\textwidth}p{0.34\textwidth}}
+    \hline
+    \textbf{处理步骤} & \textbf{处理内容} & \textbf{设计目的} \\
+    \hline
+    人工审核通过 & 管理员确认视频允许发布 & 保证内容经过人工确认 \\
+    投稿数据迁移 & 将投稿表数据写入正式视频表 & 使视频进入公开视频集合 \\
+    文件数据迁移 & 将投稿文件数据写入正式文件表 & 支持播放页读取分 P 信息 \\
+    搜索索引写入 & 将标题、简介、标签和统计信息写入索引 & 支持用户关键词检索 \\
+    状态更新 & 更新投稿状态和审核状态 & 保证创作者可以查看结果 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:publish-sync-design} 可知，视频正式发布需要多个数据步骤共同完成。投稿数据、正式数据和搜索索引之间的关系必须处理好，否则可能出现视频审核通过但搜索不到，或者搜索到未发布视频等问题。
+
+\section{安全与异常处理设计}
+\label{sec:security-exception-design}
+
+\subsection{权限控制设计}
+\label{subsec:permission-control-design}
+
+系统权限控制主要包括普通用户认证、管理员认证和内部接口保护。普通用户登录后可以进行评论、弹幕、点赞、收藏和投稿等操作；管理员登录后可以进入后台管理系统；内部接口只能由服务之间调用，不能被外部用户直接访问。
+
+管理员接口需要比普通用户接口更严格。普通用户不能访问后台审核、分类管理和 AI 审核结果查询等接口。后台请求应携带管理员登录凭证，网关或后台服务对其进行校验。Spring Security 提供了认证和授权相关能力，可作为权限控制设计的技术基础\cite{springsecuritydocs}。
+
+权限控制设计如表~\ref{tab:permission-design} 所示。通过区分不同接口类型和访问对象，可以减少越权访问风险。
+
+\begin{table}[htbp]
+  \centering
+  \caption{权限控制设计}
+  \label{tab:permission-design}
+  \begin{tabular}{p{0.22\textwidth}p{0.30\textwidth}p{0.38\textwidth}}
+    \hline
+    \textbf{接口类型} & \textbf{访问对象} & \textbf{控制方式} \\
+    \hline
+    游客接口 & 未登录用户 & 允许访问公开视频列表、搜索和详情等基础内容 \\
+    用户接口 & 登录用户 & 校验普通用户 Token，允许互动和投稿操作 \\
+    管理接口 & 管理员 & 校验管理员登录态，限制后台功能访问 \\
+    内部接口 & 服务间调用 & 使用内部接口前缀，并由网关阻止外部直接访问 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:permission-design} 可以看出，权限控制需要根据用户身份和接口类型进行区分。这样设计可以保证游客、普通用户、管理员和内部服务各自只能访问自己应该访问的功能。
+
+\subsection{异常场景处理设计}
+\label{subsec:exception-scene-design}
+
+系统运行过程中可能出现多种异常情况。例如，视频分片上传失败、视频转码失败、AI 审核消息发送失败、审核结果回写失败、搜索索引写入失败等。如果没有异常处理，系统状态可能会停在中间阶段，用户和管理员都无法判断问题原因。
+
+异常处理设计的重点是记录状态和错误原因。对于视频转码失败，系统应将投稿状态更新为转码失败，并保留失败提示；对于 AI 审核失败，系统可以记录任务失败状态，并允许管理员进行人工复核；对于消息处理失败，可以借助死信队列保存异常消息，后续再排查。
+
+表~\ref{tab:exception-design} 总结了系统主要异常场景及处理方式。该表可以作为后续测试用例设计的依据。
+
+\begin{table}[htbp]
+  \centering
+  \caption{主要异常场景及处理方式}
+  \label{tab:exception-design}
+  \begin{tabular}{p{0.28\textwidth}p{0.34\textwidth}p{0.28\textwidth}}
+    \hline
+    \textbf{异常场景} & \textbf{可能影响} & \textbf{处理方式} \\
+    \hline
+    分片上传失败 & 视频无法完整合并 & 保留上传状态，允许重新上传失败分片 \\
+    视频转码失败 & 视频无法正常播放 & 更新转码失败状态，提示创作者处理 \\
+    AI 审核请求发送失败 & AI 初审无法执行 & 记录任务失败原因，支持重新发送或人工处理 \\
+    AI 审核结果回写失败 & 后台无法查看审核结果 & 记录异常日志，结合消息重试或人工排查 \\
+    搜索索引写入失败 & 视频发布后搜索不到 & 保留正式数据，后续补偿写入索引 \\
+    内部接口被外部访问 & 可能造成越权调用 & 网关直接拦截并返回异常 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:exception-design} 可以看出，异常处理不只是简单地返回错误信息，更重要的是保证业务状态不混乱。只要状态和错误原因记录清楚，后续就可以通过重试、补偿或人工处理恢复业务流程。
+
+\section{本章小结}
+\label{sec:chapter4-summary}
+
+本章对在线视频分享平台的总体设计进行了说明。首先，根据系统需求确定了前后端分离与微服务结合的总体架构，并从表现层、网关层、业务服务层、AI 能力层和数据支撑层分析了系统分层结构。随后，对系统后端服务模块进行了划分，明确了网关服务、主站服务、后台服务、资源服务、互动服务、公共模块、基础模块和 AI 审核服务的职责。
+
+接着，本章对网关与接口设计进行了说明，包括路由规则、外部接口与内部接口边界、统一响应和权限控制等内容。在数据库设计方面，本章采用单库逻辑分域方式，重点说明了核心表、投稿数据与正式数据分离、AI 审核主从表等设计。缓存、搜索和文件存储部分则分别说明了 Redis 键空间、视频搜索索引和本地资源目录的设计思路。
+
+最后，本章围绕视频生命周期设计了投稿上传、转码回写、AI 审核、人工复核、正式发布和搜索同步等核心业务流程，并对权限控制和异常处理进行了补充说明。通过本章设计，系统从需求分析阶段进入了可实现的结构设计阶段，也为第五章的详细设计与实现提供了基础。

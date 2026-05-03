@@ -1,0 +1,471 @@
+% 第五章至第七章
+% 建议拆分路径：chapters/5_chapter5.tex、chapters/6_chapter6.tex、chapters/7_chapter7.tex
+% 写作说明：本内容基于论文目录大纲第 5、6、7 章扩展。
+% 风格说明：学术表达约 70%，自然化说明约 30%；避免重复前文已解释的技术概念。
+% 图表说明：本文中的 figure 为可编译示意图，你也可以后续替换为正式图片。
+
+\chapter{系统详细设计与实现}
+\label{chap:detail-design-implementation}
+
+在第四章中，本文已经对系统总体架构、服务划分、数据库结构、缓存搜索、消息通信和核心业务流程进行了设计。本章在总体设计的基础上，进一步说明系统主要功能模块的详细设计与实现过程。与第四章相比，本章更关注“功能如何落地”，包括用户端功能、视频上传与转码、互动功能、后台管理、AI 审核任务编排、多模态审核服务以及人机协同审核流程。
+
+本系统采用前后端分离与微服务相结合的实现方式。普通用户端负责视频浏览、播放、投稿和互动，后台管理端负责分类维护和视频审核；后端服务包括网关服务、主站服务、资源服务、互动服务和后台管理服务；AI 审核服务以独立服务形式运行，通过消息队列与 Java 后端交换任务和结果。系统实现时并没有把所有逻辑放在一个模块中，而是根据业务职责进行拆分，这样能让代码结构更清楚，也方便后续维护。
+
+\section{用户端功能模块设计与实现}
+\label{sec:user-module-implementation}
+
+\subsection{用户端整体功能结构}
+\label{subsec:user-module-structure}
+
+用户端是普通用户访问平台的主要入口，主要包括首页浏览、视频播放、用户认证、创作中心和个人中心等功能。首页用于展示公开视频内容，视频播放页用于展示视频详情和播放资源，创作中心用于用户投稿，个人中心用于查看个人信息、作品和关注等内容。
+
+用户端功能并不是简单的页面堆叠，而是围绕用户访问路径组织的。用户通常先进入首页浏览内容，再进入视频播放页观看视频；如果想参与评论、弹幕或收藏等操作，则需要完成登录；如果想发布视频，则进入创作中心提交投稿。图~\ref{fig:user-module-structure} 展示了用户端主要功能结构。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.90\textwidth}
+      \centering
+      \textbf{用户端功能结构}\\[0.8em]
+      用户端入口\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      首页浏览 \quad 视频播放 \quad 用户认证 \quad 创作中心 \quad 个人中心\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      搜索筛选、播放详情、评论弹幕、视频投稿、稿件状态、个人作品
+    \end{minipage}
+  }
+  \caption{用户端功能结构图}
+  \label{fig:user-module-structure}
+\end{figure}
+
+由图~\ref{fig:user-module-structure} 可以看出，用户端功能以视频内容为中心展开。首页和搜索用于帮助用户找到视频，播放页用于完成内容消费，互动功能用于增强用户参与感，创作中心则让用户从内容消费者转变为内容生产者。
+
+\subsection{首页浏览与搜索实现}
+\label{subsec:home-search-implementation}
+
+首页模块主要负责展示平台中的公开视频内容。用户进入平台后，可以查看视频列表，并根据分类、关键词或排序条件筛选视频。首页展示的信息包括视频封面、标题、作者、播放量、弹幕数、发布时间等，这些信息能够帮助用户快速判断视频内容是否值得观看。
+
+搜索功能主要面向关键词检索场景。视频平台中的搜索不能只依赖标题完全匹配，因为用户可能根据标签、简介或部分关键词查找视频。因此，系统在视频审核通过后，将视频标题、简介、标签和统计字段写入搜索索引，搜索时再根据关键词匹配相关内容。Elasticsearch 适合全文检索和相关性排序，因此可以支撑视频搜索需求\cite{elasticsearchdocs}。
+
+表~\ref{tab:home-search-function} 对首页浏览与搜索功能进行了说明。通过该表可以看到，首页功能并不只是单纯展示列表，还涉及分类筛选、关键词检索和排序等多个方面。
+
+\begin{table}[htbp]
+  \centering
+  \caption{首页浏览与搜索功能说明}
+  \label{tab:home-search-function}
+  \begin{tabular}{p{0.24\textwidth}p{0.34\textwidth}p{0.32\textwidth}}
+    \hline
+    \textbf{功能点} & \textbf{实现内容} & \textbf{设计目的} \\
+    \hline
+    视频列表展示 & 展示封面、标题、作者、播放量等信息 & 帮助用户快速浏览公开视频 \\
+    分类筛选 & 根据一级或二级分类过滤视频 & 提高内容查找效率 \\
+    关键词搜索 & 匹配标题、简介和标签等字段 & 支持用户主动查找内容 \\
+    排序展示 & 按发布时间、播放量等字段排序 & 满足不同浏览习惯 \\
+    热词记录 & 记录用户搜索关键词 & 为后续推荐和热词展示提供基础 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:home-search-function} 可知，首页模块承担了内容入口的作用。用户是否能顺利找到视频，很大程度上取决于首页列表和搜索功能是否清晰。系统在实现时需要保证列表数据加载稳定，同时避免未审核或未发布的视频出现在搜索结果中。
+
+\subsection{视频播放页实现}
+\label{subsec:video-play-implementation}
+
+视频播放页是用户端的核心页面。播放页需要展示视频内容本身，也需要展示标题、作者、简介、标签、分类、播放量、点赞数、收藏数、投币数、评论数等信息。对于多分 P 视频，还需要提供分 P 切换入口，让用户可以选择不同视频片段播放。
+
+由于上传视频经过资源服务转码后会生成 HLS 播放资源，播放页不直接播放原始视频文件，而是请求 \texttt{.m3u8} 播放列表，并由播放器按需加载媒体分片。HLS 将视频组织为播放列表和分片资源，适合网页端流媒体播放场景\cite{rfc8216hls}。这种方式可以降低完整大文件直接加载带来的压力，也能提高播放兼容性。
+
+播放页除了完成视频播放，还需要承载互动入口。用户可以在播放页进行点赞、收藏、投币、关注、发表评论和发送弹幕等操作。对于未登录用户，系统应允许其观看公开视频，但涉及个人行为记录的操作需要提示登录。这样既保证公开视频的可访问性，也保证互动数据能够和用户身份对应。
+
+\subsection{用户认证与登录状态实现}
+\label{subsec:user-auth-implementation}
+
+用户认证模块主要负责注册、登录、自动登录和退出登录等功能。用户登录成功后，系统生成登录凭证，并在后续请求中识别当前用户身份。登录态通常需要结合缓存进行维护，Redis 可用于保存短期 Token、验证码和用户会话相关信息\cite{redisdocs}。
+
+用户认证不仅影响登录页面，也影响其他功能模块。例如，用户未登录时可以浏览公开视频，但不能发表评论、发送弹幕、点赞、收藏、投币或投稿。系统在接口层和页面层都需要进行相应判断：页面层负责给出友好提示，接口层负责真正阻止未授权操作。
+
+表~\ref{tab:user-auth-control} 展示了用户认证与权限控制的基本关系。该表体现了游客和登录用户之间的功能差异。
+
+\begin{table}[htbp]
+  \centering
+  \caption{用户端认证与权限控制}
+  \label{tab:user-auth-control}
+  \begin{tabular}{p{0.26\textwidth}p{0.34\textwidth}p{0.30\textwidth}}
+    \hline
+    \textbf{用户状态} & \textbf{允许操作} & \textbf{限制操作} \\
+    \hline
+    游客 & 浏览视频、搜索视频、查看公开视频详情 & 评论、弹幕、点赞、收藏、投币、投稿 \\
+    登录用户 & 浏览、播放、互动、投稿、查看个人中心 & 后台管理和内部接口访问 \\
+    管理员 & 后台分类管理、视频审核、查看 AI 结果 & 普通用户身份相关的个人互动可分开处理 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:user-auth-control} 可知，认证模块的重点不是让用户“能登录”这么简单，而是让系统根据身份控制不同操作。这样可以避免匿名用户产生无法追踪的互动数据，也能保护后台管理接口不被普通用户访问。
+
+\section{视频投稿、上传与转码实现}
+\label{sec:upload-transcode-implementation}
+
+\subsection{创作中心投稿流程实现}
+\label{subsec:creator-post-implementation}
+
+创作中心面向内容创作者，主要负责视频投稿。创作者在投稿时需要填写标题、分类、标签、简介等信息，并上传视频封面和一个或多个视频文件。投稿流程不是简单上传文件，而是同时包含文件上传、投稿信息保存、文件状态记录和后续转码任务创建。
+
+系统采用投稿态数据保存创作者提交的视频信息。投稿数据在审核通过前不会进入正式视频表，因此不会直接出现在用户端列表和搜索结果中。这样做可以保证未审核内容不会被普通用户访问，也能让后台审核流程更清楚。
+
+图~\ref{fig:creator-post-flow} 展示了创作中心投稿流程。该流程从创作者填写信息开始，到系统写入转码队列结束。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.90\textwidth}
+      \centering
+      \textbf{创作中心投稿流程}\\[0.8em]
+      填写投稿信息 $\rightarrow$ 上传封面与视频分片\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      提交投稿 $\rightarrow$ 保存投稿主表与文件表\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      写入待转码队列 $\rightarrow$ 进入后台转码流程
+    \end{minipage}
+  }
+  \caption{创作中心投稿流程图}
+  \label{fig:creator-post-flow}
+\end{figure}
+
+由图~\ref{fig:creator-post-flow} 可以看出，投稿流程的关键在于把用户提交行为和后台处理行为分开。用户完成提交后，系统可以立即保存投稿数据，而转码和审核等耗时操作由后台继续完成。
+
+\subsection{视频分片上传实现}
+\label{subsec:chunk-upload-implementation}
+
+视频文件通常较大，如果直接一次性上传，网络中断后需要重新上传整个文件，用户体验会比较差。因此，系统采用分片上传方式。前端在上传前先向资源服务申请预上传任务，资源服务生成上传标识，并在 Redis 中保存上传状态。随后，前端按分片序号上传视频文件，资源服务将每个分片保存到临时目录。
+
+分片上传需要记录分片总数、当前上传序号、上传标识、文件临时路径等信息。只有当所有分片都上传完成后，资源服务才能进行合并处理。Web 表单文件上传通常基于 \texttt{multipart/form-data} 机制，而大文件上传还需要结合分片标识和断点处理进行扩展\cite{rfc7578multipart}。
+
+表~\ref{tab:chunk-upload-steps} 展示了视频分片上传的主要步骤。该表可以看出，分片上传的核心是把一次大文件传输拆成多个小任务。
+
+\begin{table}[htbp]
+  \centering
+  \caption{视频分片上传步骤}
+  \label{tab:chunk-upload-steps}
+  \begin{tabular}{p{0.18\textwidth}p{0.38\textwidth}p{0.34\textwidth}}
+    \hline
+    \textbf{步骤} & \textbf{处理内容} & \textbf{说明} \\
+    \hline
+    预上传 & 生成上传标识并记录上传状态 & 为后续分片上传建立任务标识 \\
+    分片上传 & 按序上传视频文件分片 & 降低大文件上传失败成本 \\
+    状态记录 & 保存分片数量、上传进度和临时路径 & 便于判断文件是否完整 \\
+    分片合并 & 所有分片上传完成后合并文件 & 生成可转码的原始视频文件 \\
+    队列写入 & 将文件信息加入转码队列 & 交由后台资源服务继续处理 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:chunk-upload-steps} 可知，分片上传并不只是前端把文件切开，还需要后端配合记录状态和合并分片。只有前后端共同维护上传任务，才能保证大文件上传过程可靠。
+
+\subsection{视频转码与 HLS 资源生成实现}
+\label{subsec:transcode-hls-implementation}
+
+视频上传完成后，资源服务需要对原始视频进行处理。由于用户上传的视频格式、分辨率和编码方式可能不同，直接提供原始文件播放容易出现兼容性问题。因此，资源服务通过 FFmpeg 对视频进行转码，并生成适合在线播放的 HLS 资源。FFmpeg 具备音视频转码、切片和音频提取等能力，适合用于视频资源处理\cite{ffmpegdocs}。
+
+转码完成后，系统生成 \texttt{.m3u8} 播放列表和若干 \texttt{.ts} 媒体分片。前端播放页只需要加载播放列表，播放器会根据列表继续加载分片。该方案可以让视频边加载边播放，减少完整加载大文件带来的压力。
+
+图~\ref{fig:transcode-flow} 展示了视频转码与 HLS 资源生成流程。该流程中，资源服务负责实际处理文件，主站服务负责保存和更新业务状态。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.90\textwidth}
+      \centering
+      \textbf{视频转码与 HLS 生成流程}\\[0.8em]
+      资源服务消费转码任务 $\rightarrow$ 合并上传分片\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      调用 FFmpeg 转码 $\rightarrow$ 生成 \texttt{.m3u8} 和 \texttt{.ts} 文件\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      回写文件转码状态 $\rightarrow$ 判断是否进入待审核状态
+    \end{minipage}
+  }
+  \caption{视频转码与 HLS 资源生成流程图}
+  \label{fig:transcode-flow}
+\end{figure}
+
+由图~\ref{fig:transcode-flow} 可以看出，转码结果会影响视频后续状态。如果某个分 P 转码失败，视频不能进入审核和发布流程；只有所有分 P 转码完成后，主站服务才会将视频状态更新为待审核。
+
+\subsection{转码结果回写与状态控制实现}
+\label{subsec:transcode-status-implementation}
+
+资源服务完成转码后，需要将结果回写给主站服务。回写内容包括视频编号、文件编号、上传标识、转码结果、播放资源路径和视频时长等。主站服务收到结果后，更新投稿文件表中的转码状态，并进一步判断整条视频是否已经全部转码完成。
+
+状态控制是该流程的关键。如果系统只知道“某个文件转码完成”，却不知道整条视频是否完成，就无法进入下一步审核流程。因此，主站服务需要统计同一视频下所有分 P 文件的转码结果。只要存在失败文件，视频状态应标记为转码失败；如果不存在失败文件且所有文件都已完成，视频状态才更新为待审核。
+
+表~\ref{tab:transcode-status-rule} 展示了转码状态判断规则。该表说明了分 P 文件状态与投稿主状态之间的关系。
+
+\begin{table}[htbp]
+  \centering
+  \caption{转码状态判断规则}
+  \label{tab:transcode-status-rule}
+  \begin{tabular}{p{0.30\textwidth}p{0.30\textwidth}p{0.30\textwidth}}
+    \hline
+    \textbf{分 P 文件状态} & \textbf{投稿主状态} & \textbf{后续处理} \\
+    \hline
+    存在转码失败文件 & 转码失败 & 记录失败信息，等待创作者处理 \\
+    存在未完成转码文件 & 转码中 & 继续等待资源服务处理 \\
+    所有文件转码完成 & 待审核 & 创建 AI 审核任务并等待审核结果 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:transcode-status-rule} 可知，转码状态控制不是简单更新一个字段，而是需要根据所有文件状态综合判断。这样才能保证多分 P 视频处理结果准确。
+
+\section{互动功能模块设计与实现}
+\label{sec:interaction-implementation}
+
+\subsection{评论与弹幕实现}
+\label{subsec:comment-danmu-implementation}
+
+评论和弹幕是视频平台中常见的互动功能。评论更偏向视频内容下方的讨论区，用户可以在视频下发表观点；弹幕则与视频播放时间相关，用户发送的内容会在播放画面中按时间展示。两者都属于用户生成内容，但数据结构和展示方式不同。
+
+评论数据通常包括评论编号、视频编号、用户编号、评论内容、评论时间、父评论编号等字段。弹幕数据除了包含视频编号和用户编号，还需要保存播放时间点、弹幕内容、颜色、模式等信息。这样前端在播放时才能根据当前播放进度展示对应弹幕。
+
+表~\ref{tab:comment-danmu-compare} 对评论和弹幕进行了对比。该表说明了两种互动数据在展示位置、时间属性和使用场景上的区别。
+
+\begin{table}[htbp]
+  \centering
+  \caption{评论与弹幕功能对比}
+  \label{tab:comment-danmu-compare}
+  \begin{tabular}{p{0.22\textwidth}p{0.34\textwidth}p{0.34\textwidth}}
+    \hline
+    \textbf{对比项} & \textbf{评论} & \textbf{弹幕} \\
+    \hline
+    展示位置 & 视频详情页评论区 & 视频播放画面上方 \\
+    时间属性 & 与发布时间相关 & 与视频播放时间点相关 \\
+    数据内容 & 评论内容、回复关系、点赞数 & 弹幕内容、播放时间、颜色、模式 \\
+    使用场景 & 用户讨论和内容反馈 & 观看过程中的即时表达 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:comment-danmu-compare} 可以看出，评论和弹幕虽然都属于互动内容，但实现逻辑并不相同。评论更像是普通内容讨论，弹幕则需要和播放器时间轴结合，因此在查询和展示时需要根据视频播放时间进行处理。
+
+\subsection{用户行为实现}
+\label{subsec:user-action-implementation}
+
+用户行为主要包括点赞、收藏、投币和关注等操作。这些行为可以体现用户对视频或作者的态度，也会影响视频统计数据和用户个人中心展示。用户行为实现时，需要避免重复操作带来的数据错误。例如，同一个用户对同一个视频不应无限次点赞或收藏。
+
+系统可以通过用户行为表记录用户编号、视频编号、行为类型和行为时间。用户进入播放页时，后端可以查询当前用户是否已经点赞、收藏或投币，并将状态返回给前端。这样前端可以正确展示按钮状态。
+
+对于播放量、点赞数、收藏数等统计字段，可以根据具体场景选择同步更新或异步更新。高频统计数据如果每次都直接写数据库，可能会增加数据库压力，因此部分统计可以结合缓存或队列处理。数据密集型系统设计中也强调，面对高频数据变更时需要关注可靠性和可扩展性\cite{kleppmann2017ddia}。
+
+\subsection{互动服务与主站服务协作}
+\label{subsec:interaction-web-collaboration}
+
+互动服务主要负责评论、弹幕和用户行为，主站服务主要负责视频基础信息和投稿发布等业务。两者之间需要进行一定协作。例如，互动服务处理点赞或投币后，可能需要更新视频统计信息；主站服务删除视频时，也可能需要联动删除对应评论、弹幕和用户行为。
+
+这种协作通过服务间远程调用完成。对于需要立即返回结果的操作，可以使用同步调用；对于统计累加等操作，也可以根据业务情况使用异步处理。OpenFeign 适合声明式远程调用，可以让服务间接口调用更加清晰\cite{springopenfeign}。
+
+图~\ref{fig:interaction-collaboration} 展示了互动服务与主站服务之间的协作关系。该图说明互动功能不是孤立存在的，它需要和视频主数据保持一定联系。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.90\textwidth}
+      \centering
+      \textbf{互动服务与主站服务协作}\\[0.8em]
+      用户发送评论/弹幕/行为操作 $\rightarrow$ 互动服务处理\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      互动服务保存互动数据 $\leftrightarrow$ 主站服务查询视频和用户信息\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      更新统计数据或返回互动状态
+    \end{minipage}
+  }
+  \caption{互动服务与主站服务协作图}
+  \label{fig:interaction-collaboration}
+\end{figure}
+
+由图~\ref{fig:interaction-collaboration} 可以看出，互动服务的独立并不意味着完全不依赖主站服务。合理的做法是将互动数据保存和处理放在互动服务中，而视频基础信息仍由主站服务维护。
+
+\section{后台管理模块设计与实现}
+\label{sec:admin-module-implementation}
+
+\subsection{后台管理功能结构}
+\label{subsec:admin-module-structure}
+
+后台管理模块主要面向平台管理员，负责分类管理、视频审核和 AI 审核结果查看。与普通用户端不同，后台管理端更关注内容治理和数据管理，而不是视频消费体验。因此，后台页面通常以表格、筛选条件、详情页和操作按钮为主。
+
+管理员登录后，可以进入分类管理页面维护视频分类，也可以进入审核列表查看待审核视频。视频审核详情页需要展示投稿信息、视频内容、分 P 文件、AI 审核摘要、风险标签和人工审核操作入口。表~\ref{tab:admin-function-structure} 展示了后台管理主要功能结构。
+
+\begin{table}[htbp]
+  \centering
+  \caption{后台管理功能结构}
+  \label{tab:admin-function-structure}
+  \begin{tabular}{p{0.24\textwidth}p{0.34\textwidth}p{0.32\textwidth}}
+    \hline
+    \textbf{功能模块} & \textbf{功能点} & \textbf{设计目的} \\
+    \hline
+    管理员认证 & 后台登录、退出、登录态校验 & 保证后台功能只对管理员开放 \\
+    分类管理 & 新增、编辑、删除、排序 & 维护平台视频分类体系 \\
+    审核列表 & 查询待审核视频、筛选状态 & 帮助管理员快速定位待处理内容 \\
+    审核详情 & 查看投稿信息、播放视频、查看 AI 结果 & 支撑人工审核判断 \\
+    审核操作 & 通过、驳回、记录原因 & 控制视频是否正式发布 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:admin-function-structure} 可以看出，后台管理模块围绕内容管理和审核决策展开。管理员不是简单地查看数据，而是要结合视频内容和 AI 审核提示做出最终判断。
+
+\subsection{分类管理实现}
+\label{subsec:category-management-implementation}
+
+分类管理用于维护平台视频分类体系。分类数据会影响用户投稿时的分类选择，也会影响前台视频展示和筛选。因此，分类管理需要支持新增、编辑、删除和排序等功能。
+
+分类结构通常包括一级分类和二级分类。一级分类用于表示大的内容方向，二级分类用于进一步细分内容范围。分类数据一旦被视频引用，删除或修改时就需要谨慎处理，避免影响已有视频的展示和搜索。
+
+在实现上，后台服务负责接收管理员操作请求，并通过业务逻辑更新分类表。为了提高访问效率，分类列表可以缓存到 Redis 中；当分类数据发生变化时，需要同步刷新缓存。这样既能减少数据库查询，也能保证前台展示数据相对及时。
+
+\subsection{视频审核列表与详情实现}
+\label{subsec:audit-list-detail-implementation}
+
+视频审核列表用于展示待审核或已审核的视频投稿。列表中应展示视频标题、投稿用户、分类、封面、投稿时间、转码状态、审核状态和 AI 审核摘要等信息。管理员可以通过状态、分类或关键词筛选视频，提高审核效率。
+
+审核详情页是人工审核的主要页面。管理员进入详情页后，需要看到视频的基本信息、分 P 文件、视频播放入口、AI 审核结果和人工审核按钮。这样管理员可以先了解视频内容，再结合 AI 提示做出判断。
+
+图~\ref{fig:admin-audit-flow} 展示了后台审核流程。该流程体现了后台审核列表、审核详情和人工操作之间的关系。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.90\textwidth}
+      \centering
+      \textbf{后台审核流程}\\[0.8em]
+      管理员登录 $\rightarrow$ 查看待审核列表\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      进入审核详情 $\rightarrow$ 查看视频内容与 AI 审核结果\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      人工判断 $\rightarrow$ 审核通过或驳回\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      更新投稿状态与正式视频数据
+    \end{minipage}
+  }
+  \caption{后台视频审核流程图}
+  \label{fig:admin-audit-flow}
+\end{figure}
+
+由图~\ref{fig:admin-audit-flow} 可以看出，后台审核不是单个按钮操作，而是从列表筛选到详情查看，再到最终审核结果写入的完整流程。AI 审核结果只是辅助信息，最终发布控制仍由管理员完成。
+
+\section{AI 审核模块设计与实现}
+\label{sec:ai-audit-implementation}
+
+\subsection{AI 审核任务编排实现}
+\label{subsec:ai-task-orchestration}
+
+AI 审核任务由主站服务创建和编排。当视频所有分 P 文件转码完成后，主站服务生成审核任务，保存任务主表和任务明细表，并通过 RabbitMQ 发送审核请求。审核请求中包含请求编号、视频编号、文件信息和资源路径等内容。
+
+任务编排的重点是保证任务可追踪。每一次审核都应有唯一请求编号和审核版本，便于后续查看历史结果。任务发送成功后，状态更新为处理中；如果消息发送失败，则记录失败状态和错误原因。RabbitMQ 适合服务间异步消息通信，能够降低业务服务与 AI 服务之间的直接耦合\cite{rabbitmqdocs}。
+
+表~\ref{tab:ai-task-orchestration} 展示了 AI 审核任务编排的主要步骤。该表说明了从任务创建到结果保存的整体流程。
+
+\begin{table}[htbp]
+  \centering
+  \caption{AI 审核任务编排步骤}
+  \label{tab:ai-task-orchestration}
+  \begin{tabular}{p{0.20\textwidth}p{0.42\textwidth}p{0.28\textwidth}}
+    \hline
+    \textbf{步骤} & \textbf{处理内容} & \textbf{状态变化} \\
+    \hline
+    创建任务 & 生成请求编号、审核版本和任务主记录 & 待处理 \\
+    创建明细 & 为每个分 P 文件生成审核明细记录 & 待处理 \\
+    发送消息 & 将审核请求发送到 RabbitMQ & 处理中 \\
+    AI 处理 & AI 服务消费消息并分析视频 & 处理中 \\
+    结果回写 & 保存风险等级、标签、命中片段等结果 & 完成或失败 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:ai-task-orchestration} 可知，AI 审核任务不是临时执行的黑盒操作，而是有任务记录、有状态变化、有结果回写的完整流程。这样管理员才能在后台查看审核进度和结果。
+
+\subsection{多模态审核流程实现}
+\label{subsec:multimodal-audit-implementation}
+
+AI 审核服务收到审核请求后，会下载或读取待审核视频资源，并对视频进行多模态分析。分析过程主要包括音频提取、语音活动检测、语音转写、声音事件识别、关键帧抽取和多模态语义判断。Whisper 可用于语音识别，AudioSet 相关模型可用于声音事件识别，Qwen-VL 等视觉语言模型可用于图像和文本联合理解\cite{radford2023whisper}。
+
+多模态审核的价值在于同时关注“说了什么”“出现了什么声音”和“画面表达了什么”。如果只看语音，可能忽略画面风险；如果只看画面，又可能忽略语音中的敏感内容。因此，AI 审核服务需要从多个维度综合判断。
+
+图~\ref{fig:multimodal-audit-flow} 展示了多模态审核流程。该流程体现了视频内容被拆解为音频、文本、声音事件和关键帧后，再进行综合判断的过程。
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{%
+    \begin{minipage}{0.90\textwidth}
+      \centering
+      \textbf{多模态审核流程}\\[0.8em]
+      待审核视频\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      音频提取 \quad 关键帧抽取\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      语音转写 \quad 声音事件识别 \quad 画面语义理解\\[0.4em]
+      $\Downarrow$\\[0.4em]
+      综合生成风险等级、风险标签、命中片段和审核建议
+    \end{minipage}
+  }
+  \caption{多模态 AI 审核流程图}
+  \label{fig:multimodal-audit-flow}
+\end{figure}
+
+由图~\ref{fig:multimodal-audit-flow} 可以看出，AI 审核并不是单一模型直接判断，而是先提取不同模态信息，再综合生成结论。这样能让审核结果更有解释性，也方便管理员理解风险来源。
+
+\subsection{审核结果结构化实现}
+\label{subsec:audit-result-structured}
+
+AI 审核结果需要以结构化方式返回。结果不能只包含一段文字说明，而应包括审核建议、风险等级、风险分数、风险标签、命中时间段、命中原因和关键帧截图路径等字段。这样后端才能保存结果，后台页面也能清楚展示。
+
+结构化结果分为视频级结果和分 P 级结果。视频级结果用于审核列表展示，管理员可以快速看到整体风险；分 P 级结果用于审核详情页展示，管理员可以查看具体哪个文件、哪个时间段存在风险。表~\ref{tab:audit-result-structure} 展示了审核结果字段设计。
+
+\begin{table}[htbp]
+  \centering
+  \caption{AI 审核结果结构设计}
+  \label{tab:audit-result-structure}
+  \begin{tabular}{p{0.22\textwidth}p{0.34\textwidth}p{0.34\textwidth}}
+    \hline
+    \textbf{结果层级} & \textbf{字段内容} & \textbf{展示用途} \\
+    \hline
+    视频级结果 & 审核建议、风险等级、风险摘要、审核版本 & 审核列表和详情页顶部摘要 \\
+    分 P 结果 & 文件编号、风险分数、风险标签、命中片段 & 定位具体风险视频片段 \\
+    证据信息 & 关键帧路径、转写文本、声音事件 & 帮助管理员理解风险原因 \\
+    异常信息 & 任务状态、错误原因、处理时间 & 便于失败排查和人工处理 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:audit-result-structure} 可知，审核结果的结构化程度会直接影响后台展示效果。如果结果字段设计过于简单，管理员仍然需要重新完整观看视频；如果结果能指出风险标签和命中片段，审核效率就会更高。
+
+\subsection{人机协同审核实现}
+\label{subsec:human-ai-audit-implementation}
+
+人机协同审核是本系统内容治理流程的核心。AI 服务负责初步分析视频内容，管理员负责结合视频本身、AI 结果和平台规则做最终判断。这样的设计既能利用 AI 提高初审效率，也能避免模型误判直接影响内容发布。人机交互研究中也提出，AI 系统应为人类决策提供可理解和可控制的支持\cite{amershi2019guidelines}。
+
+后台页面展示 AI 审核结果时，应突出风险等级、风险标签和命中片段。管理员可以先根据 AI 摘要判断是否需要重点查看某些片段，再播放视频进行人工确认。审核通过后，系统将视频写入正式数据表并同步搜索索引；审核驳回后，系统更新投稿状态并记录原因。
+
+表~\ref{tab:ai-human-responsibility} 展示了 AI 审核与人工审核的职责划分。该表说明两者不是替代关系，而是协作关系。
+
+\begin{table}[htbp]
+  \centering
+  \caption{AI 审核与人工审核职责划分}
+  \label{tab:ai-human-responsibility}
+  \begin{tabular}{p{0.20\textwidth}p{0.32\textwidth}p{0.22\textwidth}p{0.18\textwidth}}
+    \hline
+    \textbf{审核主体} & \textbf{主要职责} & \textbf{优点} & \textbf{局限} \\
+    \hline
+    AI 审核服务 & 自动分析画面、语音文本和声音事件 & 速度快，可批量处理 & 可能误判 \\
+    管理员 & 查看视频内容和 AI 结果，做最终判断 & 判断灵活，能结合规则 & 人工成本较高 \\
+    协同机制 & AI 初审后人工终审 & 兼顾效率和准确性 & 需要良好展示与异常处理 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+由表~\ref{tab:ai-human-responsibility} 可以看出，AI 审核更适合作为辅助工具，而管理员仍是最终审核主体。这样既提高了审核效率，也保留了人工判断的灵活性。
+
+\section{本章小结}
+\label{sec:chapter5-summary}
+
+本章对系统主要功能模块的详细设计与实现进行了说明。首先，介绍了用户端首页浏览、搜索、视频播放和用户认证等功能；随后，说明了创作中心的视频投稿、分片上传、视频转码和转码状态回写流程；接着，对评论、弹幕、点赞、收藏、投币等互动功能进行了分析；然后，介绍了后台管理中的分类管理、审核列表、审核详情和人工审核流程。
+
+在 AI 审核部分，本章重点说明了审核任务创建、消息投递、多模态分析、结果结构化保存和人机协同审核流程。整体来看，系统通过多个服务协同完成了视频从上传、转码、审核、发布到播放互动的完整流程。第五章的实现说明为后续系统测试提供了基础，也能帮助验证前文总体设计是否能够落地。
