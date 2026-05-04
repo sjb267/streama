@@ -17,43 +17,50 @@
 
 \subsection{系统参与角色划分}
 \label{subsec:system-actors}
+系统主要参与角色包括游客、注册用户、内容创作者、管理员和 AI 审核服务。其中，游客可以浏览和搜索公开视频；注册用户在登录后可以参与互动；内容创作者
+负责视频投稿与作品管理；管理员负责后台管理和人工审核；AI 审核服务负责处理
+视频审核任务并返回辅助审核结果。角色划分如表 \ref{tab:system-role-requirement}
+所示。
 
-系统主要参与角色包括游客、注册用户、内容创作者、管理员和 AI 审核服务。其中，游客可以进行基础浏览和搜索；注册用户登录后可以参与互动；内容创作者负责视频投稿和作品管理；管理员负责后台管理和人工审核；AI 审核服务负责处理视频审核任务并返回审核结果。角色划分如表~\ref{tab:system-actors} 所示。
-
-\begin{table}[htbp]
+\begin{table}[!htbp]
   \centering
+  \small
+  \renewcommand{\arraystretch}{1.15}
+  \setlength{\tabcolsep}{4pt}
   \caption{系统主要角色及功能需求}
-  \label{tab:system-actors}
-  \begin{tabular}{p{0.20\textwidth}p{0.36\textwidth}p{0.34\textwidth}}
+  \label{tab:system-role-requirement}
+  \begin{tabular}{p{0.16\textwidth}p{0.42\textwidth}p{0.32\textwidth}}
     \hline
-    \textbf{角色} & \textbf{主要功能需求} & \textbf{说明} \\
+    角色 & 主要功能需求 & 说明 \\
     \hline
     游客 & 浏览视频、搜索视频、查看公开视频信息 & 未登录用户可进行基础访问 \\
     注册用户 & 登录、播放视频、评论、弹幕、点赞、收藏、投币、关注 & 登录后可参与平台互动 \\
     内容创作者 & 上传视频、编辑投稿、查看稿件状态、管理作品 & 负责视频内容创作与发布 \\
     管理员 & 后台登录、分类管理、视频审核、查看 AI 审核结果 & 负责平台内容管理与审核 \\
-    AI 审核服务 & 消费审核任务、分析视频、返回审核结果 & 为管理员审核提供辅助依据 \\
+    AI 审核服务 & 消费审核任务、分析视频、返回审核结果 & 为人工审核提供辅助依据 \\
     \hline
   \end{tabular}
 \end{table}
 
 \subsection{系统总体业务流程}
-\label{subsec:overall-business-flow}
 
-在线视频分享平台的核心流程可以概括为“内容生产、内容处理、内容审核、内容发布、内容消费”。该流程要求视频在公开展示前必须完成上传、转码和审核，避免未经处理或未经审核的内容直接进入前台。系统总体业务流程如图~\ref{fig:overall-business-flow} 所示。
+在线视频分享平台的核心流程可以概括为“内容生产、内容处理、内容审核、内容
+发布、内容消费”。视频在公开展示前需要完成上传、转码和审核，避免未经处理或
+未经审核的内容直接进入前台。系统总体业务流程如图 \ref{fig:overall-business-flow}
+所示。
 
-\begin{figure}[htbp]
+\begin{figure}[!htbp]
   \centering
+  \small
+  \setlength{\fboxsep}{6pt}
   \fbox{%
-    \begin{minipage}{0.90\textwidth}
+    \begin{minipage}{0.88\textwidth}
       \centering
-      \textbf{在线视频分享平台总体业务流程}\\[0.8em]
-      创作者提交视频 $\rightarrow$ 视频上传与投稿保存\\[0.4em]
-      $\Downarrow$\\[0.4em]
-      视频转码与资源处理 $\rightarrow$ AI 初步审核\\[0.4em]
-      $\Downarrow$\\[0.4em]
-      管理员人工复核 $\rightarrow$ 审核通过后正式发布\\[0.4em]
-      $\Downarrow$\\[0.4em]
+      \textbf{在线视频分享平台总体业务流程}\\[0.5em]
+      创作者提交视频 $\rightarrow$ 视频上传与投稿保存 $\rightarrow$ 视频转码与资源处理\\[0.35em]
+      $\Downarrow$\\[0.35em]
+      AI 初步审核 $\rightarrow$ 管理员人工复核 $\rightarrow$ 审核通过后正式发布\\[0.35em]
+      $\Downarrow$\\[0.35em]
       用户浏览、搜索、播放视频 $\rightarrow$ 评论、弹幕、点赞等互动
     \end{minipage}
   }
@@ -61,7 +68,10 @@
   \label{fig:overall-business-flow}
 \end{figure}
 
-由图~\ref{fig:overall-business-flow} 可知，视频平台业务并不是简单的同步请求流程，而是由多个阶段组成的长流程。视频转码和 AI 审核属于耗时任务，需要通过状态流转、异步处理和结果回写保证流程可追踪。数据密集型应用设计中也强调，复杂系统需要通过状态记录和异常恢复来提升可靠性\cite{kleppmann2017ddia}。
+由图 \ref{fig:overall-business-flow} 可知，视频平台业务并不是简单的同步请求
+流程，而是由上传、转码、审核、发布和消费多个阶段组成。视频转码和 AI 审核属
+于耗时任务，需要通过状态流转、异步处理和结果回写保证流程可追踪。数据密集型
+应用设计中也强调，复杂系统需要通过状态记录和异常恢复来提升可靠性\cite{kleppmann2017ddia}。
 
 \section{用户端功能需求分析}
 \label{sec:user-side-requirements}
@@ -219,7 +229,7 @@ AI 审核服务主要负责自动化风险识别。系统在视频转码完成�
 
 可扩展性方面，系统应支持后续根据业务压力扩展不同模块，例如资源处理压力较大时可以优先优化资源服务，互动访问频繁时可以优化互动模块。安全性方面，系统需要区分普通用户和管理员权限，对后台接口、上传文件和审核接口进行必要保护。
 
-可靠性和一致性方面，系统应保证视频投稿、文件处理、审核状态和正式发布数据之间保持逻辑一致。若转码失败、AI 审核失败或服务短暂不可用，系统应能记录状态和失败原因，避免业务状态混乱。可维护性方面，系统应保持清晰的模块边界、接口规范和日志记录，便于后续修改和排查问题。
+可靠性和一致性方面，系统应保证视频投稿、文件处理、审核状态和正式发布数据之间保持逻辑一致。对于涉及多个服务协作的关键写操作，系统需要具备事务协调或状态补偿能力；对于视频转码、AI 审核和播放统计等耗时或高频任务，则应通过异步处理和结果回写保证最终状态一致。若转码失败、AI 审核失败或服务短暂不可用，系统应能记录状态和失败原因，避免业务状态混乱。可维护性方面，系统应保持清晰的模块边界、接口规范和日志记录，便于后续修改和排查问题。
 
 系统主要非功能需求如表~\ref{tab:non-functional-requirements} 所示。
 

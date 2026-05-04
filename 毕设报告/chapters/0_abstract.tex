@@ -5,22 +5,20 @@
 
 % 中英文摘要章节
 \begin{abstract}
-% 中文摘要正文从这里开始
-本文……。
+随着移动互联网和在线视频业务的快速发展，视频分享平台已经成为用户获取信息、表达观点和参与社区互动的重要载体。传统单体架构在面对视频投稿、文件上传、视频转码、内容审核、搜索播放和互动统计等复杂业务时，容易出现模块耦合度高、扩展困难和维护成本较高等问题。针对上述问题，本文设计并实现了一个基于微服务架构的在线视频分享平台。
 
-\textcolor{blue}{摘要正文选用模板中的样式所定义的“正文”，每段落首行缩进 2 个字符；或者手动设置成每段落首行缩进 2 个汉字，字体：宋体，字号：小四，行距：固定值 22 磅，间距：段前、段后均为 0 行。阅后删除此段。}
+系统采用前后端分离与微服务相结合的设计思路，后端基于 Spring Boot 和 Spring Cloud Alibaba 构建，按照业务职责划分为网关服务、主站业务服务、资源文件服务、互动服务、后台管理服务和公共基础模块。系统使用 MySQL 保存核心业务数据，Redis 处理验证码、登录态、缓存和临时任务状态，Elasticsearch 支持视频全文检索，RabbitMQ 承担 AI 审核任务的异步消息通信，Seata 用于支撑关键跨服务写操作的一致性控制。在视频处理方面，系统实现了视频分片上传、文件合并、FFmpeg 转码和 HLS 播放资源生成；在内容审核方面，系统设计了独立的 AI 审核服务，对视频语音、声音事件和关键帧内容进行分析，并将风险等级、风险标签和审核建议返回后台，由管理员进行人工终审。
 
-\textcolor{blue}{摘要是一篇具有独立性和完整性的短文，应概括而扼要地反映出本论文的主要内容。包括研究目的、研究方法、研究结果和结论等，特别要突出研究结果和结论。中文摘要力求语言精炼准确，本科生毕业设计（论文）摘要建议 300-500 字。摘要中不可出现参考文献、图、表、化学结构式、非公知公用的符号和术语。英文摘要与中文摘要的内容应一致。阅后删除此段。}
+测试结果表明，系统能够完成视频浏览、搜索播放、用户互动、视频投稿、分片上传、视频转码、AI 初审、人工审核和正式发布等核心流程，整体业务链路能够形成闭环。本文的研究与实现验证了微服务架构、异步任务处理、视频资源处理和智能审核技术在在线视频分享平台中的综合应用价值。
 
 \end{abstract}
 
-% 如需手动控制换行连字符位置，可写 aa\-bb，详见
-% https://bithesis.bitnp.net/faq/hyphen.html
-
 % 英文摘要章节
 \begin{abstractEn}
-% 英文摘要正文从这里开始
-In order to study……
+With the rapid development of mobile Internet and online video services, video sharing platforms have become important carriers for users to obtain information, express opinions, and participate in community interactions. However, when traditional monolithic architecture is applied to complex business processes such as video submission, file uploading, video transcoding, content review, search, playback, and interaction statistics, it may lead to high module coupling, poor scalability, and increased maintenance cost. To address these problems, this thesis designs and implements an online video sharing platform based on microservices.
 
-\textcolor{blue}{Abstract 正文设置成每段落首行缩进 2 字符，字体：Times New Roman，字号：小四，行距：固定值 22 磅，间距：段前、段后均为 0 行。阅后删除此段。}
+The system adopts a combination of front-end and back-end separation and microservice architecture. The back-end is built with Spring Boot and Spring Cloud Alibaba, and is divided into several modules according to business responsibilities, including the gateway service, main business service, resource service, interaction service, administration service, and common basic modules. MySQL is used to store core business data, Redis is used for verification codes, login states, cache data, and temporary task states, Elasticsearch is used for full-text video search, RabbitMQ is used for asynchronous communication of AI review tasks, and Seata is introduced to support data consistency in key cross-service write operations. For video processing, the system implements chunked uploading, file merging, FFmpeg transcoding, and HLS playback resource generation. For content review, an independent AI review service is designed to analyze video speech, sound events, and key frames, and then return risk levels, risk labels, and review suggestions to the administration system for final manual review.
+
+The test results show that the system can complete core processes such as video browsing, search and playback, user interaction, video submission, chunked uploading, video transcoding, AI preliminary review, manual review, and final publishing. The overall business process forms a complete closed loop. The design and implementation of this thesis verify the comprehensive application value of microservice architecture, asynchronous task processing, video resource processing, and intelligent content review technology in an online video sharing platform.
+
 \end{abstractEn}
