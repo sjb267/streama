@@ -168,21 +168,7 @@
 
 \begin{figure}[htbp]
   \centering
-  \fbox{%
-    \begin{minipage}{0.92\textwidth}
-      \centering
-      \textbf{视频投稿到发布测试链路}\\[0.8em]
-      用户提交视频投稿\\[0.4em]
-      $\Downarrow$\\[0.4em]
-      分片上传与文件合并\\[0.4em]
-      $\Downarrow$\\[0.4em]
-      FFmpeg 转码并生成 HLS 播放资源\\[0.4em]
-      $\Downarrow$\\[0.4em]
-      创建 AI 审核任务并回写审核结果\\[0.4em]
-      $\Downarrow$\\[0.4em]
-      管理员人工审核通过后前台展示播放
-    \end{minipage}
-  }
+  \includegraphics[width=0.95\textwidth]{images/video-flow-test.png}
   \caption{视频投稿到发布测试链路图}
   \label{fig:video-flow-test}
 \end{figure}

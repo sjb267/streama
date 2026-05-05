@@ -27,22 +27,7 @@
 
 \begin{figure}[htbp]
     \centering
-    \fbox{%
-    \begin{minipage}{0.92\textwidth}
-    \centering
-    \textbf{系统总体架构示意}\\[0.8em]
-    普通用户端 / 后台管理端\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    统一网关服务\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    主站业务服务 \quad 后台管理服务 \quad 资源文件服务 \quad 互动服务\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    MySQL \quad Redis \quad Elasticsearch \quad RabbitMQ \quad Seata \quad 文件存储\\[0.4em]
-    $\Updownarrow$\\[0.4em]
-    AI 审核服务
-    \end{minipage}
-    }
-    \caption{系统总体架构图}
+    \includegraphics[width=0.9\textwidth]{images/system_architecture.png}
     \label{fig:system-architecture}
 \end{figure}
 
@@ -167,22 +152,7 @@
 
 为了避免内部接口被外部用户直接访问，系统对内部接口进行隔离。内部接口统一使用特定前缀，例如 \texttt{/innerApi}。网关在接收到外部请求时，如果发现请求路径包含内部接口前缀，则直接拒绝访问。该设计能够减少内部业务接口暴露带来的安全风险。
 
-\begin{figure}[htbp]
-    \centering
-    \fbox{%
-    \begin{minipage}{0.92\textwidth}
-    \centering
-    \textbf{接口边界示意}\\[0.8em]
-    外部用户请求 $\rightarrow$ 网关 $\rightarrow$ 外部业务接口\\[0.5em]
-    服务间调用 $\rightarrow$ 内部接口前缀 $\rightarrow$ 服务内部处理\\[0.5em]
-    网关检测到外部访问内部接口 $\rightarrow$ 拒绝请求
-    \end{minipage}
-    }
-    \caption{外部接口与内部接口边界图}
-    \label{fig:interface-boundary}
-\end{figure}
-
-图~\ref{fig:interface-boundary} 说明，接口隔离的重点不是增加接口数量，而是明确哪些接口可以被前端访问，哪些接口只能在服务内部调用。该设计对后台审核、转码回写和内部数据联动等场景比较重要。
+接口隔离的重点不是增加接口数量，而是明确哪些接口可以被前端访问，哪些接口只能在服务内部调用。该设计对后台审核、转码回写和内部数据联动等场景比较重要。
 
 \subsection{接口规范设计}
 \label{subsec:api-response-design}
@@ -261,19 +231,7 @@
 
 \begin{figure}[htbp]
     \centering
-    \fbox{%
-    \begin{minipage}{0.92\textwidth}
-    \centering
-    \textbf{投稿数据与正式数据关系}\\[0.8em]
-    创作者提交 $\rightarrow$ 投稿主表 / 投稿文件表\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    转码完成 $\rightarrow$ 待审核状态\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    审核通过 $\rightarrow$ 正式视频表 / 正式文件表\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    前台展示、搜索、播放
-    \end{minipage}
-    }
+    \includegraphics[width=0.95\textwidth]{images/post_official_data.png}
     \caption{投稿数据与正式数据分离设计图}
     \label{fig:post-official-data}
 \end{figure}
@@ -389,16 +347,7 @@ Redis 在系统中主要承担缓存、登录态、上传临时状态和轻量�
 
 \begin{figure}[htbp]
     \centering
-    \fbox{%
-    \begin{minipage}{0.92\textwidth}
-    \centering
-    \textbf{异步任务设计示意}\\[0.8em]
-    投稿提交 $\rightarrow$ Redis 转码队列 $\rightarrow$ 资源服务执行视频转码\\[0.5em]
-    转码完成 $\rightarrow$ 创建 AI 审核任务 $\rightarrow$ RabbitMQ 审核请求队列\\[0.5em]
-    AI 服务消费请求 $\rightarrow$ 执行多模态审核 $\rightarrow$ RabbitMQ 结果队列\\[0.5em]
-    主站服务消费结果 $\rightarrow$ 保存审核数据 $\rightarrow$ 等待管理员复核
-    \end{minipage}
-    }
+    \includegraphics[width=0.95\textwidth]{images/async_task_design.png}
     \caption{异步任务总体设计图}
     \label{fig:async-task-design}
 \end{figure}
@@ -466,17 +415,7 @@ AI 审核任务采用 RabbitMQ 进行消息通信。主站服务作为审核请�
 
 \begin{figure}[htbp]
     \centering
-    \fbox{%
-    \begin{minipage}{0.92\textwidth}
-    \centering
-    \textbf{视频生命周期总体流程}\\[0.8em]
-    预上传 $\rightarrow$ 分片上传 $\rightarrow$ 投稿信息保存 $\rightarrow$ 视频转码\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    转码完成 $\rightarrow$ AI 审核 $\rightarrow$ 管理员人工复核\\[0.4em]
-    $\Downarrow$\\[0.4em]
-    审核通过 $\rightarrow$ 正式发布 $\rightarrow$ 前台展示、搜索和播放
-    \end{minipage}
-    }
+    \includegraphics[width=0.95\textwidth]{images/video_lifecycle_flow.png}
     \caption{视频生命周期总体流程图}
     \label{fig:video-lifecycle-flow}
 \end{figure}

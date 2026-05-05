@@ -46,29 +46,9 @@
 
 在线视频分享平台的核心流程可以概括为“内容生产、内容处理、内容审核、内容
 发布、内容消费”。视频在公开展示前需要完成上传、转码和审核，避免未经处理或
-未经审核的内容直接进入前台。系统总体业务流程如图 \ref{fig:overall-business-flow}
-所示。
+未经审核的内容直接进入前台。
 
-\begin{figure}[!htbp]
-  \centering
-  \small
-  \setlength{\fboxsep}{6pt}
-  \fbox{%
-    \begin{minipage}{0.88\textwidth}
-      \centering
-      \textbf{在线视频分享平台总体业务流程}\\[0.5em]
-      创作者提交视频 $\rightarrow$ 视频上传与投稿保存 $\rightarrow$ 视频转码与资源处理\\[0.35em]
-      $\Downarrow$\\[0.35em]
-      AI 初步审核 $\rightarrow$ 管理员人工复核 $\rightarrow$ 审核通过后正式发布\\[0.35em]
-      $\Downarrow$\\[0.35em]
-      用户浏览、搜索、播放视频 $\rightarrow$ 评论、弹幕、点赞等互动
-    \end{minipage}
-  }
-  \caption{系统总体业务流程示意图}
-  \label{fig:overall-business-flow}
-\end{figure}
-
-由图 \ref{fig:overall-business-flow} 可知，视频平台业务并不是简单的同步请求
+视频平台业务并不是简单的同步请求
 流程，而是由上传、转码、审核、发布和消费多个阶段组成。视频转码和 AI 审核属
 于耗时任务，需要通过状态流转、异步处理和结果回写保证流程可追踪。数据密集型
 应用设计中也强调，复杂系统需要通过状态记录和异常恢复来提升可靠性\cite{kleppmann2017ddia}。
@@ -204,16 +184,7 @@ AI 审核服务主要负责自动化风险识别。系统在视频转码完成�
 
 \begin{figure}[htbp]
   \centering
-  \fbox{%
-    \begin{minipage}{0.90\textwidth}
-      \centering
-      \textbf{视频投稿与审核状态流转}\\[0.8em]
-      用户提交投稿 $\rightarrow$ 转码中\\[0.4em]
-      转码中 $\rightarrow$ 转码失败 或 待审核\\[0.4em]
-      待审核 $\rightarrow$ 创建 AI 审核任务 $\rightarrow$ 返回 AI 审核结果\\[0.4em]
-      管理员人工审核 $\rightarrow$ 审核通过并正式发布 或 审核不通过
-    \end{minipage}
-  }
+  \includegraphics[width=0.95\textwidth]{images/video-status-flow.png}
   \caption{视频投稿与审核状态流转图}
   \label{fig:video-status-flow}
 \end{figure}

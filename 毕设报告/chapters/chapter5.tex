@@ -17,26 +17,7 @@
 
 用户端是普通用户访问视频分享平台的主要入口，主要包括首页浏览、视频播放、用户认证、创作中心和个人中心等功能。首页用于展示公开视频内容，视频播放页用于展示视频详情和播放资源，创作中心用于用户投稿，个人中心用于查看个人信息、作品状态和互动记录。
 
-用户端功能围绕用户访问路径展开。用户通常先进入首页浏览内容，再进入视频播放页观看视频；如果需要进行评论、弹幕、点赞、收藏或投币等操作，则需要登录；如果需要发布视频，则进入创作中心完成投稿。图~\ref{fig:user-module-structure} 展示了用户端主要功能结构。
-
-\begin{figure}[htbp]
- \centering
- \fbox{%
- \begin{minipage}{0.90\textwidth}
- \centering
- \textbf{用户端功能结构}\\[0.8em]
- 用户端入口\\[0.4em]
- $\Downarrow$\\[0.4em]
- 首页浏览 \quad 视频播放 \quad 用户认证 \quad 创作中心 \quad 个人中心\\[0.4em]
- $\Downarrow$\\[0.4em]
- 搜索筛选、播放详情、评论弹幕、视频投稿、稿件状态、个人作品
- \end{minipage}
- }
- \caption{用户端功能结构图}
- \label{fig:user-module-structure}
-\end{figure}
-
-由图~\ref{fig:user-module-structure} 可以看出，用户端功能以视频内容为中心。首页和搜索用于帮助用户发现视频，播放页用于完成内容消费，互动功能用于增强用户参与感，创作中心则使用户能够从内容消费者转变为内容生产者。
+它的功能围绕用户访问路径展开。用户通常先进入首页浏览内容，再进入视频播放页观看视频；如果需要进行评论、弹幕、点赞、收藏或投币等操作，则需要登录；如果需要发布视频，则进入创作中心完成投稿。
 
 \subsection{首页浏览与搜索实现}
 \label{subsec:home-search-implementation}
@@ -111,23 +92,7 @@
 
 \begin{figure}[htbp]
  \centering
- \fbox{%
- \begin{minipage}{0.90\textwidth}
- \centering
- \textbf{视频投稿处理链路}\\[0.8em]
- 用户填写投稿信息\\[0.4em]
- $\Downarrow$\\[0.4em]
- 上传封面与视频分片\\[0.4em]
- $\Downarrow$\\[0.4em]
- 保存投稿信息并记录分 P 数据\\[0.4em]
- $\Downarrow$\\[0.4em]
- 进入转码队列与审核队列\\[0.4em]
- $\Downarrow$\\[0.4em]
- AI 初审与人工终审\\[0.4em]
- $\Downarrow$\\[0.4em]
- 审核通过后发布展示
- \end{minipage}
- }
+ \includegraphics[width=0.95\textwidth]{images/video-submit-chain.png}
  \caption{视频投稿处理链路图}
  \label{fig:video-submit-chain}
 \end{figure}
@@ -143,23 +108,7 @@
 
 \begin{figure}[htbp]
  \centering
- \fbox{%
- \begin{minipage}{0.92\textwidth}
- \centering
- \textbf{视频分片上传处理流程}\\[0.8em]
- 生成文件唯一标识\\[0.3em]
- $\Downarrow$\\[0.3em]
- 前端按序上传分片\\[0.3em]
- $\Downarrow$\\[0.3em]
- 资源服务校验用户身份和分片参数\\[0.3em]
- $\Downarrow$\\[0.3em]
- 保存分片到临时目录并记录上传状态\\[0.3em]
- $\Downarrow$\\[0.3em]
- 判断分片是否全部完成\\[0.3em]
- $\Downarrow$\\[0.3em]
- 合并文件并清理临时分片
- \end{minipage}
- }
+ \includegraphics[width=0.95\textwidth]{images/chunk_upload_process.png}
  \caption{视频分片上传处理流程图}
  \label{fig:chunk-upload-process}
 \end{figure}
@@ -209,23 +158,7 @@
 
 \begin{figure}[htbp]
  \centering
- \fbox{%
- \begin{minipage}{0.90\textwidth}
- \centering
- \textbf{视频转码实现流程}\\[0.8em]
- 分片合并得到原始视频文件\\[0.4em]
- $\Downarrow$\\[0.4em]
- 写入待转码任务\\[0.4em]
- $\Downarrow$\\[0.4em]
- 资源服务消费转码任务\\[0.4em]
- $\Downarrow$\\[0.4em]
- 调用 FFmpeg 生成 HLS 文件\\[0.4em]
- $\Downarrow$\\[0.4em]
- 保存 \texttt{.m3u8} 和 \texttt{.ts} 文件\\[0.4em]
- $\Downarrow$\\[0.4em]
- 更新视频转码状态和播放地址
- \end{minipage}
- }
+ \includegraphics[width=0.95\textwidth]{images/transcode_process.png}
  \caption{视频转码实现流程图}
  \label{fig:transcode-process}
 \end{figure}
@@ -326,30 +259,7 @@
 
 AI 审核是本系统的特色模块之一，用于在视频进入人工审核前对内容进行自动初审。AI 审核并不替代管理员最终判断，而是通过文本、音频和画面维度的风险识别，为人工审核提供参考依据。
 
-用户投稿完成并生成视频资源后，系统会创建 AI 审核任务。任务创建时需要记录视频编号、分 P 编号、任务版本、审核状态、任务创建时间等信息。对于多分 P 视频，系统需要为每个分 P 建立审核明细，避免只审核其中一个片段而遗漏其他内容。AI 审核任务创建流程如图~\ref{fig:ai-task-create-process} 所示。
-
-\begin{figure}[htbp]
- \centering
- \fbox{%
- \begin{minipage}{0.90\textwidth}
- \centering
- \textbf{AI 审核任务创建流程}\\[0.8em]
- 投稿信息保存完成\\[0.4em]
- $\Downarrow$\\[0.4em]
- 查询视频分 P 与资源地址\\[0.4em]
- $\Downarrow$\\[0.4em]
- 创建审核任务主记录\\[0.4em]
- $\Downarrow$\\[0.4em]
- 为每个分 P 创建审核明细\\[0.4em]
- $\Downarrow$\\[0.4em]
- 发送审核消息到消息队列\\[0.4em]
- $\Downarrow$\\[0.4em]
- AI 审核服务消费任务并回写结果
- \end{minipage}
- }
- \caption{AI 审核任务创建流程图}
- \label{fig:ai-task-create-process}
-\end{figure}
+用户投稿完成并生成视频资源后，系统会创建 AI 审核任务。任务创建时需要记录视频编号、分 P 编号、任务版本、审核状态、任务创建时间等信息。对于多分 P 视频，系统需要为每个分 P 建立审核明细，避免只审核其中一个片段而遗漏其他内容。
 
 AI 审核任务创建需要避免重复提交。系统可以根据视频编号、分 P 编号和审核版本判断是否已经存在有效任务。如果任务已经创建，则不应重复写入队列，否则可能造成同一视频被多次审核，影响审核状态准确性。
 
@@ -392,21 +302,7 @@ AI 审核服务采用独立服务形式实现，主要负责接收审核任务�
 
 \begin{figure}[htbp]
  \centering
- \fbox{%
- \begin{minipage}{0.90\textwidth}
- \centering
- \textbf{多模态 AI 审核服务结构}\\[0.8em]
- 审核任务输入\\[0.4em]
- $\Downarrow$\\[0.4em]
- 视频下载或读取\\[0.4em]
- $\Downarrow$\\[0.4em]
- 文本检测 \quad 音频检测 \quad 画面检测\\[0.4em]
- $\Downarrow$\\[0.4em]
- 风险结果汇总\\[0.4em]
- $\Downarrow$\\[0.4em]
- 生成审核建议并回写后端
- \end{minipage}
- }
+ \includegraphics[width=0.95\textwidth]{images/multi_modal_ai_structure.png}
  \caption{多模态 AI 审核服务结构图}
  \label{fig:multi-modal-ai-structure}
 \end{figure}
@@ -478,27 +374,6 @@ AI 审核完成后，需要将结果回写到 Java 后端。回写内容主要�
 \label{subsec:review-status-flow}
 
 视频审核涉及多个状态，包括待转码、转码中、待 AI 审核、AI 审核中、待人工审核、审核通过、审核驳回等。系统需要通过状态字段保证不同处理环节有序执行。只有当视频资源准备完成后，AI 审核才有完整输入；只有当 AI 审核结果返回或进入人工复核状态后，管理员才适合进行最终审核。
-
-\begin{figure}[htbp]
- \centering
- \fbox{%
- \begin{minipage}{0.92\textwidth}
- \centering
- \textbf{审核状态流转}\\[0.8em]
- 投稿提交\\[0.3em]
- $\Downarrow$\\[0.3em]
- 视频转码中\\[0.3em]
- $\Downarrow$\\[0.3em]
- AI 审核中\\[0.3em]
- $\Downarrow$\\[0.3em]
- 待人工审核\\[0.3em]
- $\Downarrow$\\[0.3em]
- 审核通过 \quad 或 \quad 审核驳回
- \end{minipage}
- }
- \caption{审核状态流转图}
- \label{fig:review-status-flow}
-\end{figure}
 
 状态流转实现中需要避免越级操作。例如，转码失败的视频不能进入发布状态；已经驳回的视频不能被普通用户直接访问；审核通过后才允许写入搜索索引并在前台展示。通过状态约束，系统能够保证视频生命周期清晰可控。
 
