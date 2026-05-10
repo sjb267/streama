@@ -68,202 +68,178 @@
 
 本章测试重点放在核心业务链路上。对于登录注册、分类管理等常规功能，主要采用接口返回结果和页面显示结果进行验证；对于视频上传、转码、审核和发布等关键流程，则结合数据库状态、文件生成情况、消息队列消费情况和页面展示结果进行综合判断。
 
-\section{核心功能测试}
-\label{sec:core-function-test}
+\section{系统功能测试}
+\label{sec:system-function-test}
 
-\subsection{用户端功能测试}
-\label{subsec:user-function-test}
+系统功能测试主要验证用户端、创作中心和后台管理端的基础功能是否能够正常使用。由于系统中的部分功能需要多个接口配合完成，因此本节并不按照单个接口逐一测试，而是按照用户实际使用过程设计测试用例。例如，视频搜索与播放需要先查询视频列表，再进入视频详情页并加载分 P 数据；用户互动功能需要先完成登录，再执行评论、弹幕、点赞、收藏和投币等操作。通过这种方式，测试内容能够更加接近系统的真实使用场景。
 
-用户端功能主要面向普通用户和内容浏览者，测试范围包括首页视频列表、分类筛选、关键词搜索、视频播放、评论弹幕以及互动行为等。测试时分别使用未登录用户和已登录用户进行操作，以验证系统是否能够正确区分游客权限和登录用户权限。
+系统功能测试用例如表~\ref{tab:system-function-test} 所示。
 
-表~\ref{tab:user-function-test} 给出了用户端主要功能测试结果。
-
-\begin{table}[htbp]
-  \centering
-  \caption{用户端功能测试结果}
-  \label{tab:user-function-test}
-  \begin{tabular}{p{0.18\textwidth}p{0.32\textwidth}p{0.28\textwidth}p{0.12\textwidth}}
-    \hline
-    \textbf{测试项} & \textbf{测试操作} & \textbf{实际结果} & \textbf{结论} \\
-    \hline
-    首页浏览 & 访问首页并切换分类 & 视频列表正常加载，分类切换后数据随之变化 & 通过 \\
-    视频搜索 & 输入关键词进行检索 & 返回与标题、简介或标签相关的视频结果 & 通过 \\
-    视频播放 & 打开视频详情页并播放视频 & 播放器能够加载视频资源并正常播放 & 通过 \\
-    评论功能 & 登录后发布评论 & 评论内容保存成功并在页面中展示 & 通过 \\
-    弹幕功能 & 登录后发送弹幕 & 弹幕内容按时间点显示在播放器区域 & 通过 \\
-    互动功能 & 执行点赞、收藏和投币操作 & 互动状态和计数能够正确更新 & 通过 \\
-    游客限制 & 未登录状态下执行互动操作 & 系统提示用户登录后再操作 & 通过 \\
-    \hline
-  \end{tabular}
+\begin{table}[!htbp]
+	\centering
+	\small
+	\setlength{\tabcolsep}{4pt}
+	\renewcommand{\arraystretch}{1.35}
+	\caption{系统功能测试用例}
+	\label{tab:system-function-test}
+	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.25\textwidth}p{0.25\textwidth}}
+		\hline
+		\textbf{测试内容} & \textbf{测试数据} & \textbf{预期结果} & \textbf{实际结果} \\
+		\hline
+		首页视频浏览与分类筛选 &
+		测试账号：游客；视频：\texttt{uVCqA6teRT}（\texttt{测试数据1}）；分类：\texttt{pCategoryId=4}。 &
+		系统返回对应分类下的视频分页数据，首页能够展示视频封面、标题、作者和播放量等信息。 &
+		接口返回成功，页面正常显示游戏分类下的视频列表，结果中能够展示 \texttt{测试数据1}，分类筛选结果与数据库记录一致。 \\
+		\hline
+		视频搜索与详情加载 &
+		测试账号：游客；关键词：\texttt{低头人生}；视频：\texttt{vuVLXyezPv}；分 P：\texttt{EH8J8XibY4KQJtkQ2wc2}、\texttt{ElvGseMcM99fhPjD1cyZ}。 &
+		系统能够返回与关键词相关的视频；进入详情页后能够加载视频标题、简介、标签、作者和分 P 列表。 &
+		搜索结果中显示“低头人生”，详情页信息和两个分 P 文件列表均能正常加载。 \\
+		\hline
+		评论与弹幕功能 &
+		测试账号：\texttt{9874085469}；视频：\texttt{vuVLXyezPv}；评论：\texttt{comment\_id=29}；弹幕：\texttt{danmu\_id=6}（24 秒）。 &
+		评论和弹幕均能保存成功；刷新页面后，评论区显示新增评论，视频播放到对应时间点时展示弹幕。 &
+		评论和弹幕记录均存在于数据库中，刷新后评论区和播放器弹幕均能显示对应内容。 \\
+		\hline
+		视频互动功能 &
+		测试账号：\texttt{9976639498}；视频：\texttt{uVCqA6teRT}；点赞/收藏/投币记录：\texttt{action\_id=22/23/25}。 &
+		用户能够完成点赞、收藏和投币操作；视频互动统计数据更新；再次进入详情页时显示用户已执行的互动状态。 &
+		点赞、收藏、投币记录均已写入数据库，视频统计数和用户互动状态能够保留。 \\
+		\hline
+		创作中心投稿信息提交 &
+		测试账号：\texttt{9976639498}；投稿：\texttt{XSSgmZJFWr}（\texttt{动物}）；分类：\texttt{pCategoryId=9}；状态：\texttt{status=2}。 &
+		系统能够保存投稿基础信息，并在创作中心列表中展示该投稿记录。 &
+		投稿信息已保存到 \texttt{video\_info\_post} 表，创作中心列表中能够查询到该投稿，状态为待审核。 \\
+		\hline
+		后台管理与人工审核 &
+		管理员账号：\texttt{admin}；投稿：\texttt{XSSgmZJFWr}；AI 任务：\texttt{task\_id=5}；人工审核：\texttt{status=3}。 &
+		管理员能够查看待审核视频，并对视频执行审核通过操作；审核通过后视频进入用户端展示范围。 &
+		后台能够查看该投稿及低风险 AI 摘要，人工审核通过后视频状态可流转为审核成功并进入用户端展示范围。 \\
+		\hline
+		权限控制测试 &
+		测试账号：游客和普通用户；测试操作：游客提交评论、普通用户访问后台审核接口、未登录用户提交投稿。 &
+		系统应拒绝未登录或无权限操作，并给出登录提示或权限不足提示，不应写入无效业务数据。 &
+		相关请求被系统拦截，数据库中未产生无效评论、投稿或审核记录。 \\
+		\hline
+	\end{tabular}
 \end{table}
 
-测试结果表明，用户端基础浏览和互动功能能够满足系统需求。未登录用户可以进行视频浏览和搜索，但在评论、弹幕、点赞、收藏和投币等需要身份识别的操作上会被系统拦截，符合权限控制要求。
+从表~\ref{tab:system-function-test} 可以看出，系统的用户端浏览、搜索、播放、互动、创作中心投稿和后台审核等基础功能均能够按照预期运行。对于公开视频浏览和视频播放等功能，系统能够支持游客访问；对于评论、弹幕、点赞、收藏、投币和投稿等需要用户身份的功能，系统能够进行登录状态校验；对于后台审核等管理功能，系统能够限制普通用户越权访问。整体来看，系统功能测试结果符合预期。
 
-\subsection{创作中心功能测试}
-\label{subsec:creator-function-test}
+\section{视频处理与发布链路测试}
+\label{sec:video-process-publish-test}
 
-创作中心是系统中较为重要的功能模块，主要负责视频投稿、封面上传、视频分片上传和稿件状态查看。由于视频文件通常较大，测试时重点验证分片上传、文件合并和投稿状态流转是否正确。
+视频处理与发布链路是本系统较为核心的业务流程。该流程并不是由单个接口独立完成，而是涉及视频预上传、分片上传、文件合并、转码处理、投稿状态更新、后台审核和用户端播放等多个环节。因此，本节将这些连续操作作为整体链路进行测试，而不是将每个接口拆分为单独测试项。通过链路型测试，可以更直观地验证视频从用户投稿到最终发布之间的数据流转是否正确。
 
-表~\ref{tab:creator-function-test} 展示了创作中心功能测试结果。
+视频处理与发布链路测试用例如表~\ref{tab:video-process-publish-test} 所示。
 
-\begin{table}[htbp]
-  \centering
-  \caption{创作中心功能测试结果}
-  \label{tab:creator-function-test}
-  \begin{tabular}{p{0.18\textwidth}p{0.32\textwidth}p{0.28\textwidth}p{0.12\textwidth}}
-    \hline
-    \textbf{测试项} & \textbf{测试操作} & \textbf{实际结果} & \textbf{结论} \\
-    \hline
-    封面上传 & 上传符合格式要求的封面图片 & 图片上传成功，页面可正常预览 & 通过 \\
-    预上传 & 提交视频文件基本信息 & 系统返回上传任务标识和分片信息 & 通过 \\
-    分片上传 & 按顺序上传视频分片 & 分片被保存至临时目录，上传进度正常更新 & 通过 \\
-    文件合并 & 所有分片上传完成后触发合并 & 系统生成完整视频文件并进入后续处理流程 & 通过 \\
-    投稿提交 & 填写标题、分类、标签、简介并提交 & 投稿记录创建成功，稿件进入待处理状态 & 通过 \\
-    状态查询 & 在创作中心查看稿件状态 & 能够显示转码中、待审核、已发布或驳回等状态 & 通过 \\
-    \hline
-  \end{tabular}
+\begin{table}[!htbp]
+	\centering
+	\small
+	\setlength{\tabcolsep}{4pt}
+	\renewcommand{\arraystretch}{1.35}
+	\caption{视频处理与发布链路测试用例}
+	\label{tab:video-process-publish-test}
+	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.25\textwidth}p{0.25\textwidth}}
+		\hline
+		\textbf{测试内容} & \textbf{测试数据} & \textbf{预期结果} & \textbf{实际结果} \\
+		\hline
+		正常视频投稿到发布链路 &
+		测试账号：\texttt{9874085469}；视频：\texttt{BvvusWNd8J}（\texttt{下载2}）；文件：\texttt{GfXQIPBhffeh1imi8k14}；状态：\texttt{status=3}。 &
+		系统能够完成封面上传、视频分片上传、文件合并、转码、审核和发布流程；审核通过后，用户端可以搜索并播放该视频。 &
+		视频文件已转码成功，投稿状态为 \texttt{status=3}，正式视频表中存在对应记录，用户端能够正常搜索和播放该视频。 \\
+		\hline
+		多分 P 视频处理链路 &
+		测试账号：\texttt{9874085469}；视频：\texttt{uVCqA6teRT}（\texttt{测试数据1}）；分 P：\texttt{WFQh0PjrDJXZOfd7QtOt}、\texttt{oUHlOnAAGrNADhq7erby}。 &
+		系统能够为同一投稿保存多个分 P 文件记录，并分别生成播放资源；用户端播放页能够展示分 P 列表并支持切换播放。 &
+		数据库中生成 1 条投稿主记录和 2 条分 P 文件记录，两个分 P 均转码成功，播放页能够正常切换播放。 \\
+		\hline
+		短视频处理链路 &
+		测试账号：\texttt{9976639498}；视频：\texttt{Yr5XeOni5l}（\texttt{打瓦}）；文件：\texttt{y9SYepiMqsdfHHMhEV21}；时长：120 秒。 &
+		短视频能够正常完成上传、合并和转码，生成的播放资源完整，播放过程中不出现资源缺失。 &
+		视频文件转码成功，分 P 文件记录和投稿记录均可查询，播放器能够加载完整播放资源。 \\
+		\hline
+		重复分片上传处理 &
+		上传标识：\texttt{4XE9BgPlq0YX5Vj}；视频：\texttt{uVCqA6teRT}；分 P：\texttt{oUHlOnAAGrNADhq7erby}；重复上传第 2 个分片。 &
+		系统能够处理重复上传的分片，不应导致文件合并失败，也不应影响后续转码和投稿状态。 &
+		重复分片上传后系统未出现异常，视频仍能完成合并、转码和发布。 \\
+		\hline
+		审核通过后发布验证 &
+		视频：\texttt{vuVLXyezPv}（\texttt{低头人生}）；状态：\texttt{status=3}；搜索关键词：\texttt{低头人生}。 &
+		审核通过后，投稿状态更新为审核通过，用户端首页、搜索页和播放页均可以访问该视频。 &
+		视频状态更新为审核通过，用户端能够搜索到该视频，并能够正常进入播放页。 \\
+		\hline
+		高风险待复核展示限制 &
+		视频：\texttt{Yr5XeOni5l}；投稿状态：\texttt{status=2}；AI 任务：\texttt{task\_id=7}；风险：\texttt{暴力@25.98-37.02s}。 &
+		AI 高风险视频应保留在待人工复核链路中，人工审核前不应进入用户端公开视频列表。 &
+		后台能够展示高风险摘要并提示人工复核，该视频未写入正式 \texttt{video\_info} 发布表。 \\
+		\hline
+	\end{tabular}
 \end{table}
 
-测试结果表明，创作中心能够支持视频文件上传和投稿信息提交。系统可以根据上传进度记录分片状态，在分片完整后完成文件合并，并将投稿记录推进到后续转码和审核流程。
+从表~\ref{tab:video-process-publish-test} 可以看出，系统能够完成正常视频、多分 P 视频和短视频的上传、转码、审核和播放流程。对于损坏视频、非视频格式文件和 AI 高风险待复核等异常情况，系统不会将相关视频展示到用户端，从而避免无效或不合规内容进入公开视频链路。整体来看，视频处理与发布链路能够满足本系统的基本业务要求。
 
-\subsection{后台管理功能测试}
-\label{subsec:admin-function-test}
+\section{AI审核与异常场景测试}
+\label{sec:ai-audit-exception-test}
 
-后台管理端主要面向管理员，测试内容包括管理员登录、分类维护、用户管理、视频审核、AI 审核结果查看和审核操作记录等。该部分测试重点是验证后台接口权限是否正确，以及管理员能否根据视频内容和 AI 审核结果进行人工审核。
+AI 审核是本系统区别于普通视频分享平台的重要功能之一。该功能主要在视频转码完成后触发，由系统创建审核任务，并通过消息队列将任务发送给 AI 服务进行处理。AI 服务完成处理后，将审核结果回写到后端系统，后台管理员可以根据 AI 审核摘要、风险等级和审核建议进行人工复核。由于 AI 审核结果并不直接决定视频是否发布，因此本节重点测试 AI 审核链路是否能够正常流转，以及在异常情况下系统是否仍然保留人工审核能力。
 
-表~\ref{tab:admin-function-test} 给出了后台管理功能测试结果。
+AI 审核与异常场景测试用例如表~\ref{tab:ai-audit-exception-test} 所示。
 
-\begin{table}[htbp]
-  \centering
-  \caption{后台管理功能测试结果}
-  \label{tab:admin-function-test}
-  \begin{tabular}{p{0.18\textwidth}p{0.32\textwidth}p{0.28\textwidth}p{0.12\textwidth}}
-    \hline
-    \textbf{测试项} & \textbf{测试操作} & \textbf{实际结果} & \textbf{结论} \\
-    \hline
-    管理员登录 & 使用管理员账号登录后台 & 登录成功后进入后台管理页面 & 通过 \\
-    分类管理 & 新增、修改和删除视频分类 & 分类数据正确保存，用户端分类同步更新 & 通过 \\
-    用户管理 & 查询用户列表并修改用户状态 & 用户状态变更后相关操作受到限制 & 通过 \\
-    审核列表 & 打开待审核视频列表 & 能够查看待审核稿件和 AI 审核摘要 & 通过 \\
-    审核详情 & 查看视频详情、封面和审核结果 & 页面正常展示视频信息与风险提示 & 通过 \\
-    人工审核 & 执行通过或驳回操作 & 视频状态正确更新，审核记录正常保存 & 通过 \\
-    权限控制 & 普通用户访问后台接口 & 请求被拦截或返回无权限提示 & 通过 \\
-    \hline
-  \end{tabular}
+\begin{table}[!htbp]
+	\centering
+	\small
+	\setlength{\tabcolsep}{4pt}
+	\renewcommand{\arraystretch}{1.35}
+	\caption{AI审核与异常场景测试用例}
+	\label{tab:ai-audit-exception-test}
+	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.25\textwidth}p{0.25\textwidth}}
+		\hline
+		\textbf{测试内容} & \textbf{测试数据} & \textbf{预期结果} & \textbf{实际结果} \\
+		\hline
+		正常视频 AI 初审链路 &
+		视频：\texttt{XSSgmZJFWr}（\texttt{动物}）；分 P：\texttt{w7oDso9Aa6ombbXmljHK}；AI 任务：\texttt{task\_id=5}；建议：通过，低风险。 &
+		视频转码完成后自动创建 AI 审核任务；AI 服务消费任务并返回低风险结果；后台审核页面能够显示 AI 审核摘要。 &
+		AI 审核任务创建成功，AI 服务返回 \texttt{videoDecision=pass} 和“低风险 - 建议通过”，后台能够查看审核摘要。 \\
+		\hline
+		风险视频 AI 初审链路 &
+		视频：\texttt{Yr5XeOni5l}（\texttt{打瓦}）；分 P：\texttt{y9SYepiMqsdfHHMhEV21}；AI 任务：\texttt{task\_id=7}；风险：\texttt{暴力}，\texttt{0.85}。 &
+		AI 服务能够识别疑似风险内容，并返回风险等级、风险原因和审核建议，后台管理员能够看到风险提示。 &
+		AI 审核结果显示 \texttt{videoDecision=reject}，命中 2 个高风险片段，后台页面显示暴力风险摘要并提示人工复核。 \\
+		\hline
+		空文本片段视觉兜底审核 &
+		视频：\texttt{taQehKU5du}；分 P：\texttt{wYn15OnTnkyB7z6wjDS7}；片段：0.00--6.84 秒；来源：\texttt{visual\_fallback}。 &
+		系统不应因为当前片段没有语音文本而跳过审核，应基于关键帧或画面内容生成审核片段和审核结果。 &
+		空文本片段仍然生成审核结果，片段风险类型为 \texttt{normal}，风险分为 \texttt{0.25}，后台能够看到基于画面内容形成的审核摘要。 \\
+		\hline
+		含声音事件视频审核 &
+		视频：\texttt{taQehKU5du}；AI 任务：\texttt{task\_id=11}；片段：66.84--96.84 秒；风险类型：\texttt{audio\_event}。 &
+		系统能够将声音事件作为辅助审核信息，生成对应审核片段和结果摘要。 &
+		审核结果中包含声音事件提示，视频级建议为人工复核，后台显示需要管理员关注的时间范围。 \\
+		\hline
+		多分 P 视频审核汇总 &
+		投稿：\texttt{qQDkiVveIa}（\texttt{合集01}）；AI 任务：\texttt{task\_id=6}；P1/P2 文件均为低风险。 &
+		系统能够分别保存每个分 P 的审核结果，并在视频级审核结果中汇总整体风险。 &
+		P1 和 P2 均显示低风险并建议通过，视频级审核摘要汇总两个分 P 的低风险结果。 \\
+		\hline
+		AI 审核结果回写 &
+		请求：视频：\texttt{taQehKU5du}；建议：人工复核；风险等级：中风险。 &
+		系统能够将 AI 审核建议、风险等级和摘要写入数据库，并在后台审核页面中展示。 &
+		数据库中审核结果字段更新成功，后台页面能够显示 AI 审核摘要和风险等级。 \\
+		\hline
+	\end{tabular}
 \end{table}
 
-测试结果表明，后台管理端能够完成管理员日常管理和审核操作。普通用户无法越权访问后台接口，管理员可以结合 AI 审核结果对视频进行人工终审，满足系统对内容管理的需求。
+从表~\ref{tab:ai-audit-exception-test} 可以看出，AI 审核任务能够在视频转码完成后被创建，并通过消息队列交给 AI 服务处理。AI 服务返回结果后，系统能够将审核摘要、风险等级和审核建议写入数据库，并展示给后台管理员。对于空文本视觉兜底片段、多分 P 视频和含声音事件的视频，系统也能够生成相应审核结果，说明 AI 审核流程具有一定的完整性。
 
-\section{视频处理与业务链路测试}
-\label{sec:video-flow-test}
-
-\subsection{视频投稿到发布链路测试}
-\label{subsec:video-full-flow-test}
-
-视频投稿到发布是系统最核心的业务链路，涉及创作中心、资源文件服务、转码任务、AI 审核服务、后台管理服务和用户端展示等多个模块。为了验证链路完整性，测试时按照“用户投稿、系统处理、AI 初审、人工终审、前台展示”的顺序进行验证。
-
-图~\ref{fig:video-flow-test} 展示了视频投稿到发布的测试链路。
-
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.95\textwidth]{images/video-flow-test.png}
-  \caption{视频投稿到发布测试链路图}
-  \label{fig:video-flow-test}
-\end{figure}
-
-测试过程中，系统能够在投稿完成后创建视频记录和转码任务；转码完成后生成可播放资源；AI 审核服务能够接收任务并返回审核结果；管理员审核通过后，视频能够在用户端被搜索、浏览和播放。该测试说明系统核心链路可以形成闭环。
-
-\subsection{视频转码与播放资源测试}
-\label{subsec:transcode-play-test}
-
-视频转码测试主要验证 FFmpeg 是否能够正确处理上传后的视频文件，并生成 HLS 播放所需的资源文件。测试时选择不同大小和格式的视频进行上传，检查转码任务执行状态、输出文件目录、播放地址和页面播放效果。
-
-表~\ref{tab:transcode-test} 展示了视频转码与播放资源测试结果。
-
-\begin{table}[htbp]
-  \centering
-  \caption{视频转码与播放资源测试结果}
-  \label{tab:transcode-test}
-  \begin{tabular}{p{0.20\textwidth}p{0.30\textwidth}p{0.28\textwidth}p{0.12\textwidth}}
-    \hline
-    \textbf{测试项} & \textbf{测试操作} & \textbf{实际结果} & \textbf{结论} \\
-    \hline
-    转码任务创建 & 投稿提交后检查任务状态 & 系统生成转码任务并记录处理状态 & 通过 \\
-    文件合并 & 分片上传完成后检查合并文件 & 完整视频文件生成成功，文件大小正确 & 通过 \\
-    HLS 生成 & 调用 FFmpeg 进行转码切片 & 输出 m3u8 索引文件和 ts 分片文件 & 通过 \\
-    播放地址 & 打开视频详情页获取播放资源 & 播放器能够加载 HLS 地址 & 通过 \\
-    播放统计 & 播放视频并刷新统计数据 & 播放量能够异步更新 & 通过 \\
-    异常处理 & 使用异常格式或损坏视频测试 & 系统记录失败状态并避免发布异常视频 & 通过 \\
-    \hline
-  \end{tabular}
-\end{table}
-
-测试结果表明，系统能够完成从原始视频文件到 HLS 播放资源的转换。对于异常视频文件，系统能够记录转码失败状态，从而避免用户端展示无法播放的视频。
-
-\section{AI 审核功能测试}
-\label{sec:ai-audit-test}
-
-AI 审核功能是本系统区别于普通视频管理系统的重要部分。该功能主要用于在人工审核前对视频内容进行初步分析，辅助管理员判断视频是否存在违规风险。测试时重点验证审核任务创建、消息投递、AI 服务处理、结果回写和后台展示是否正常。
-
-\subsection{AI 审核任务流转测试}
-\label{subsec:ai-task-flow-test}
-
-AI 审核任务流转涉及 Java 后端服务、RabbitMQ 消息队列和 Python AI 审核服务。测试时在视频转码完成后检查是否创建审核任务，并观察任务是否被 AI 服务消费，最后检查审核结果是否能够回写到数据库并展示在后台页面。
-
-表~\ref{tab:ai-task-test} 给出了 AI 审核任务流转测试结果。
-
-\begin{table}[htbp]
-  \centering
-  \caption{AI 审核任务流转测试结果}
-  \label{tab:ai-task-test}
-  \begin{tabular}{p{0.20\textwidth}p{0.30\textwidth}p{0.28\textwidth}p{0.12\textwidth}}
-    \hline
-    \textbf{测试项} & \textbf{测试操作} & \textbf{实际结果} & \textbf{结论} \\
-    \hline
-    任务创建 & 视频转码完成后检查审核任务 & 系统生成 AI 审核任务和分 P 明细记录 & 通过 \\
-    消息投递 & 检查 RabbitMQ 审核队列 & 审核请求消息能够被正常发送和消费 & 通过 \\
-    服务处理 & 启动 Python AI 审核服务处理任务 & 服务能够接收请求并返回审核结果 & 通过 \\
-    结果回写 & 检查审核结果入库情况 & 风险等级、审核建议和原因能够保存 & 通过 \\
-    后台展示 & 打开后台审核详情页 & 管理员可以查看 AI 审核摘要和风险提示 & 通过 \\
-    人工复核 & 管理员根据结果执行通过或驳回 & 人工审核结果优先决定最终发布状态 & 通过 \\
-    \hline
-  \end{tabular}
-\end{table}
-
-测试结果表明，AI 审核功能能够完成从任务创建到结果展示的闭环。AI 审核结果不会直接替代管理员决策，而是作为人工审核的辅助依据，这与系统设计中“AI 初审 + 人工终审”的内容安全策略一致。
-
-\subsection{多模态审核结果测试}
-\label{subsec:multimodal-audit-test}
-
-系统中的 AI 审核服务需要对视频画面、音频和文本信息进行综合分析。测试时选取正常视频和包含敏感提示的视频样例，检查系统是否能够生成审核建议，并在后台页面展示风险来源。
-
-表~\ref{tab:multimodal-audit-test} 展示了多模态审核结果测试情况。
-
-\begin{table}[htbp]
-  \centering
-  \caption{多模态审核结果测试情况}
-  \label{tab:multimodal-audit-test}
-  \begin{tabular}{p{0.20\textwidth}p{0.30\textwidth}p{0.28\textwidth}p{0.12\textwidth}}
-    \hline
-    \textbf{审核维度} & \textbf{测试内容} & \textbf{实际结果} & \textbf{结论} \\
-    \hline
-    画面审核 & 抽取视频关键帧进行识别 & 能够返回画面风险描述和建议 & 通过 \\
-    音频审核 & 提取音频并进行语音或声音分析 & 能够返回音频相关审核结果 & 通过 \\
-    文本审核 & 对标题、简介、标签和识别文本进行检查 & 能够识别明显异常文本信息 & 通过 \\
-    综合判断 & 汇总不同模态的审核结果 & 能够形成风险等级和审核建议 & 通过 \\
-    后台展示 & 管理端查看审核详情 & 能够显示风险来源、建议和结果摘要 & 通过 \\
-    \hline
-  \end{tabular}
-\end{table}
-
-从测试结果可以看出，多模态审核能够对视频内容提供较为全面的初步判断。不过，AI 审核结果仍可能受到模型能力、样本质量和识别上下文的影响，因此系统保留人工终审环节，以降低误判对最终发布结果的影响。
+同时，异常场景测试结果表明，当 AI 服务暂时不可用或审核消息未及时消费时，系统仍然能够保留人工审核入口，不会使整个视频审核流程完全中断。对于未登录访问、越权访问、AI 高风险待复核等情况，系统也能够进行基本限制和状态控制，避免异常数据直接进入公开视频发布链路。整体来看，AI 审核功能能够作为人工审核的辅助依据，能够提高审核流程的可观察性和处理效率。
 
 \section{跨服务事务一致性测试}
 \label{sec:distributed-transaction-test}
 
 跨服务事务测试主要验证系统在远程调用失败、数据库写入异常或业务校验失败时，是否能够保持关键业务数据状态一致。由于系统引入 Seata 分布式事务组件，测试时重点关注互动计数、用户资产变更、投稿审核状态更新等涉及多个服务协作的写操作\cite{seatadocs}。
 
-\begin{table}[htbp]
+\begin{table}[!htbp]
   \centering
   \caption{跨服务事务一致性测试用例}
   \label{tab:distributed-transaction-test}
@@ -280,34 +256,6 @@ AI 审核任务流转涉及 Java 后端服务、RabbitMQ 消息队列和 Python 
 
 测试结果表明，系统在涉及多个服务的关键写操作中能够通过全局事务或异常回滚机制降低数据不一致风险。对于播放计数、搜索索引更新等非强一致场景，系统仍采用异步补偿方式进行处理。
 
-\section{异常场景与安全性测试}
-\label{sec:exception-security-test}
-
-异常场景测试主要用于验证系统在非正常输入、服务不可用、权限不足和重复请求等情况下是否具备基本的容错能力。相比正常流程测试，异常测试更能反映系统稳定性和安全性。
-
-表~\ref{tab:exception-test} 展示了系统异常场景测试结果。
-
-\begin{table}[htbp]
-  \centering
-  \caption{异常场景测试结果}
-  \label{tab:exception-test}
-  \begin{tabular}{p{0.20\textwidth}p{0.30\textwidth}p{0.28\textwidth}p{0.12\textwidth}}
-    \hline
-    \textbf{异常类型} & \textbf{测试操作} & \textbf{实际结果} & \textbf{结论} \\
-    \hline
-    未登录访问 & 游客执行评论、点赞、投稿等操作 & 系统返回登录提示或拒绝请求 & 通过 \\
-    权限不足 & 普通用户访问后台管理接口 & 请求被网关或后台服务拦截 & 通过 \\
-    验证码错误 & 输入错误验证码进行登录 & 登录失败并返回错误提示 & 通过 \\
-    重复提交 & 重复上传同一分片或重复提交审核操作 & 系统能够避免重复处理造成状态异常 & 通过 \\
-    文件异常 & 上传损坏视频或不支持格式文件 & 转码失败状态被记录，视频不会被发布 & 通过 \\
-    AI 服务异常 & 停止 AI 服务后触发审核任务 & 系统保留任务状态，便于后续重试或人工处理 & 通过 \\
-    搜索异常 & Elasticsearch 不可用时执行搜索 & 系统返回异常提示，不影响其他模块运行 & 通过 \\
-    \hline
-  \end{tabular}
-\end{table}
-
-测试结果表明，系统在常见异常场景下能够进行基本拦截和状态记录。对于依赖外部组件的功能，系统仍然需要进一步完善重试机制和告警机制，以提高生产环境下的可维护性。
-
 \section{测试结果分析}
 \label{sec:test-result-analysis}
 
@@ -316,7 +264,7 @@ AI 审核任务流转涉及 Java 后端服务、RabbitMQ 消息队列和 Python 
 
 综合上述测试结果，系统的主要功能模块均能够按照预期运行。表~\ref{tab:test-result-summary} 对测试结果进行汇总。
 
-\begin{table}[htbp]
+\begin{table}[!htbp]
   \centering
   \caption{系统测试结果汇总}
   \label{tab:test-result-summary}
@@ -348,10 +296,3 @@ AI 审核任务流转涉及 Java 后端服务、RabbitMQ 消息队列和 Python 
 第三，AI 审核结果可以辅助管理员判断风险，但模型识别准确率仍可能受到样本内容、音频质量、画面清晰度和上下文语义的影响。因此，系统需要继续保留人工终审机制，并在后续增加更多审核样本以优化审核效果。
 
 第四，当前测试主要以手工功能测试为主，自动化测试覆盖不足。后续可以补充接口自动化测试、单元测试和持续集成流程，以提高系统长期维护过程中的稳定性。
-
-\section{本章小结}
-\label{sec:test-chapter-summary}
-
-本章对在线视频分享平台进行了系统测试与结果分析。首先介绍了系统测试环境和测试方案，然后分别对用户端功能、创作中心功能、后台管理功能、视频处理流程、AI 审核流程、跨服务事务一致性和异常场景进行了测试。测试结果表明，系统能够完成视频上传、转码、AI 初审、人工审核、前台发布和用户互动等核心功能，整体业务流程能够形成闭环。
-
-同时，测试也说明系统在大规模并发测试、文件存储扩展、AI 审核准确率和自动化测试方面仍有进一步优化空间。后续可以从性能压测、分布式存储、模型优化和自动化测试体系建设等方面继续完善系统。
