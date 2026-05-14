@@ -1,7 +1,6 @@
 package com.streama.entity.po;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.streama.entity.enums.DateTimePatternEnum;
 import com.streama.entity.enums.VideoStatusEnum;
 import com.streama.utils.DateUtils;
@@ -66,7 +65,6 @@ public class VideoInfoPost extends VideoInfo implements Serializable {
 	/**
 	 * 0:转码中 1:转码失败 2:待审核 3:审核成功 4:审核失败
 	 */
-	@JsonIgnore
 	private Integer status;
 
 	/**
