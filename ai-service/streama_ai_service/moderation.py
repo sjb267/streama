@@ -49,6 +49,22 @@ class ModerationEngine:
                         qwen_device=self._settings.qwen_device,
                         trace_model_inputs=self._settings.trace_model_inputs,
                         trace_dir=self._settings.trace_dir,
+                        segment_axis=self._settings.segment_axis,
+                        scene_window_seconds=self._settings.scene_window_seconds,
+                        scene_min_segment_seconds=self._settings.scene_min_segment_seconds,
+                        scene_detection_enabled=self._settings.scene_detection_enabled,
+                        scene_sample_fps=self._settings.scene_sample_fps,
+                        scene_min_gap_seconds=self._settings.scene_min_gap_seconds,
+                        scene_adaptive_multiplier=self._settings.scene_adaptive_multiplier,
+                        scene_min_score=self._settings.scene_min_score,
+                        qwen_audit_mode=self._settings.qwen_audit_mode,
+                        qwen_review_window_mode=self._settings.qwen_review_window_mode,
+                        qwen_single_window_seconds=self._settings.qwen_single_window_seconds,
+                        qwen_adaptive_min_window_seconds=self._settings.qwen_adaptive_min_window_seconds,
+                        qwen_adaptive_max_window_seconds=self._settings.qwen_adaptive_max_window_seconds,
+                        qwen_adaptive_target_window_seconds=self._settings.qwen_adaptive_target_window_seconds,
+                        qwen_risk_focus_window_seconds=self._settings.qwen_risk_focus_window_seconds,
+                        qwen_single_max_frames_per_window=self._settings.qwen_single_max_frames_per_window,
                     )
                     service.frame_extraction_rate = self._settings.extraction_rate
                     service.runtime_checks["qwen"] = dict(self._qwen_preflight)
@@ -243,10 +259,16 @@ class ModerationEngine:
                     if event.get("is_risk")
                 ]
                 try:
+                    scene_cut_times = service.detect_scene_cuts(source)
+                except Exception as exc:
+                    scene_cut_times = []
+                    coverage_issues.append(f"scene_detect_error:{exc}")
+                try:
                     frames_info = service.extract_keyframes(
                         source,
                         extraction_rate=self._settings.extraction_rate,
                         focus_times=risk_sound_times,
+                        scene_cut_times=scene_cut_times,
                     )
                 except Exception as exc:
                     frames_info = []
@@ -256,7 +278,7 @@ class ModerationEngine:
                 else:
                     coverage_issues.append("no_keyframes")
 
-                aligned_segments = service.build_audit_segments(
+                scene_segments = service.build_audit_segments(
                     transcriptions=transcriptions,
                     frames_info=frames_info,
                     sound_events=sound_events,
@@ -264,19 +286,55 @@ class ModerationEngine:
                     video_meta=video_meta,
                     item_meta=item_meta,
                     coverage_issues=coverage_issues,
+                    scene_cut_times=scene_cut_times,
                 )
-                aligned_segments = service.align_sound_with_segments(aligned_segments, sound_events)
-                if any(segment.get("metadata_summary") for segment in aligned_segments):
+                scene_segments = service.align_sound_with_segments(scene_segments, sound_events)
+                review_windows = service.build_qwen_review_windows(scene_segments)
+                if not review_windows and scene_segments:
+                    review_windows = scene_segments
+                    coverage_issues.append("review_window_fallback_to_scene_segments")
+                if any(segment.get("metadata_summary") for segment in review_windows):
                     modalities_checked.add("metadata_text")
-                service.batch_audit(aligned_segments, max_segments=None)
+                service.batch_audit(review_windows, max_segments=None)
+                qwen_stats = dict(getattr(service, "qwen_audit_stats", {}) or {})
+                qwen_incomplete_count = sum(
+                    1
+                    for segment in review_windows
+                    if (segment.get("audit_result") or {}).get("audit_incomplete")
+                    or (segment.get("audit_result") or {}).get("risk_type") == "audit_incomplete"
+                )
+                stage_results = {
+                    "scene_detection": {
+                        "enabled": bool(self._settings.scene_detection_enabled),
+                        "scene_cut_count": len(scene_cut_times),
+                    },
+                    "whisper": {
+                        "checked": "speech_text" in modalities_checked,
+                        "voice_segment_count": len(voice_segments),
+                        "transcription_count": len(transcriptions),
+                    },
+                    "yamnet": {
+                        "checked": "audio_event" in modalities_checked,
+                        "sound_event_count": len(sound_events),
+                        "risk_sound_count": len(risk_sound_times),
+                    },
+                    "qwen": {
+                        "audited_segment_count": sum(1 for segment in review_windows if segment.get("audit_result")),
+                        "incomplete_count": qwen_incomplete_count,
+                        "scene_segment_count": len(scene_segments),
+                        "review_window_count": len(review_windows),
+                        **qwen_stats,
+                    },
+                }
                 report = service.generate_audit_report(
-                    aligned_segments,
+                    review_windows,
                     source,
                     coverage_issues=coverage_issues,
                     modalities_checked=sorted(modalities_checked),
+                    stage_results=stage_results,
                 )
                 self._last_error = None
-                return {"report": report, "segments": aligned_segments}
+                return {"report": report, "segments": review_windows}
             except Exception as exc:
                 self._last_error = str(exc)
                 LOGGER.exception("Video moderation failed for %s", video_source)

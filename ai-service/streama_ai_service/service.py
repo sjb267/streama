@@ -168,13 +168,13 @@ class AuditWorkflow:
             ):
                 risk_tags.append(risk_type)
 
-            best_frame_path = ""
+            evidence_frame_paths: list[str] = []
             if self._has_exportable_frame_source(segment):
                 try:
-                    best_frame_path = self._export_best_frame_path(request, item, segment)
+                    evidence_frame_paths = self._export_evidence_frame_paths(request, item, segment)
                 except Exception:
                     LOGGER.warning(
-                        "Failed to export best frame for requestId=%s fileId=%s segmentId=%s",
+                        "Failed to export evidence frames for requestId=%s fileId=%s segmentId=%s",
                         request.request_id,
                         item.file_id,
                         segment.get("segment_id"),
@@ -194,7 +194,7 @@ class AuditWorkflow:
                 "reason": audit_result.get("reason"),
                 "isRisky": segment_is_risky,
                 "hasRiskSound": bool(segment.get("has_risk_sound", False)),
-                "bestFramePath": best_frame_path,
+                "evidenceFramePaths": evidence_frame_paths,
                 "sourceType": segment.get("source_type"),
             }
             audit_segments.append(segment_payload)
@@ -220,7 +220,7 @@ class AuditWorkflow:
         if segment.get("best_frame_path"):
             return True
         segment_frames = segment.get("segment_frames") or []
-        return bool(segment_frames and segment_frames[0].get("path"))
+        return any(isinstance(frame, dict) and frame.get("path") for frame in segment_frames)
 
     @staticmethod
     def _to_bool(value: Any) -> bool:
@@ -317,23 +317,15 @@ class AuditWorkflow:
             parts.append(f"{file_part}: {item.item_reason}")
         return f"videoDecision={decision_text}; " + " | ".join(parts)
 
-    def _export_best_frame_path(
+    def _export_evidence_frame_paths(
         self,
         request: AuditRequestMessage,
         item: AuditRequestItem,
         segment: dict[str, Any],
-    ) -> str:
-        source_path = segment.get("best_frame_path")
-        if not source_path:
-            segment_frames = segment.get("segment_frames") or []
-            if segment_frames:
-                source_path = segment_frames[0].get("path")
-        if not source_path:
-            raise FileNotFoundError(f"best_frame_path is empty for fileId={item.file_id}")
-
-        source = Path(source_path)
-        if not source.exists():
-            raise FileNotFoundError(f"best frame not found: {source}")
+    ) -> list[str]:
+        source_paths = self._collect_evidence_frame_sources(segment)
+        if not source_paths:
+            raise FileNotFoundError(f"evidence frame paths are empty for fileId={item.file_id}")
 
         audit_version = str(request.audit_version or 1)
         snapshot_root = Path(self._settings.storage.root_dir) / "audit-snapshot" / request.video_id / audit_version
@@ -341,12 +333,42 @@ class AuditWorkflow:
 
         file_id = item.file_id or "unknown_file"
         segment_id = segment.get("segment_id") or "unknown_segment"
-        target_name = f"{file_id}_{segment_id}{source.suffix or '.jpg'}"
-        target = snapshot_root / target_name
-        shutil.copy2(source, target)
+        exported_paths: list[str] = []
 
-        relative = Path("audit-snapshot") / request.video_id / audit_version / target_name
-        return relative.as_posix()
+        for source_path in source_paths:
+            source = Path(source_path)
+            if not source.exists():
+                LOGGER.warning("Evidence frame not found, skipping: %s", source)
+                continue
+            index = len(exported_paths) + 1
+            target_name = f"{file_id}_{segment_id}_frame_{index:02d}{source.suffix or '.jpg'}"
+            target = snapshot_root / target_name
+            shutil.copy2(source, target)
+            relative = Path("audit-snapshot") / request.video_id / audit_version / target_name
+            exported_paths.append(relative.as_posix())
+
+        if not exported_paths:
+            raise FileNotFoundError(f"no evidence frames exported for fileId={item.file_id}")
+        return exported_paths
+
+    @staticmethod
+    def _collect_evidence_frame_sources(segment: dict[str, Any]) -> list[str]:
+        segment_frames = segment.get("segment_frames") or []
+        source_paths: list[str] = []
+        seen_paths: set[str] = set()
+
+        for frame in segment_frames:
+            source_path = str(frame.get("path") or "").strip() if isinstance(frame, dict) else ""
+            if not source_path or source_path in seen_paths:
+                continue
+            source_paths.append(source_path)
+            seen_paths.add(source_path)
+
+        if source_paths:
+            return source_paths
+
+        best_frame_path = str(segment.get("best_frame_path") or "").strip()
+        return [best_frame_path] if best_frame_path else []
 
     @staticmethod
     def _cleanup_local_source(local_source: Path | None) -> None:

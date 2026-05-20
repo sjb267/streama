@@ -49,6 +49,14 @@ export function autoLogin() {
   })
 }
 
+export function getUserCountInfo() {
+  return webRequest({
+    url: '/account/getUserCountInfo',
+    method: 'get',
+    requireAuth: true,
+  })
+}
+
 export function logout() {
   return webRequest({
     url: '/account/logout',

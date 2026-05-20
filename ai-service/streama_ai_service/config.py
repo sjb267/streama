@@ -83,6 +83,22 @@ class ModerationSettings(BaseModel):
     qwen_device: str = "cuda"
     preload_models: bool = False
     extraction_rate: int = 1
+    segment_axis: str = "visual"
+    scene_window_seconds: float = 10.0
+    scene_min_segment_seconds: float = 2.0
+    scene_detection_enabled: bool = True
+    scene_sample_fps: float = 4.0
+    scene_min_gap_seconds: float = 1.0
+    scene_adaptive_multiplier: float = 2.5
+    scene_min_score: float = 25.0
+    qwen_audit_mode: str = "single"
+    qwen_review_window_mode: str = "adaptive"
+    qwen_single_window_seconds: float = 10.0
+    qwen_adaptive_min_window_seconds: float = 5.0
+    qwen_adaptive_max_window_seconds: float = 30.0
+    qwen_adaptive_target_window_seconds: float = 20.0
+    qwen_risk_focus_window_seconds: float = 8.0
+    qwen_single_max_frames_per_window: int = 12
     sound_top_k: int = 5
     sound_confidence_threshold: float = 0.3
     language: str | None = "zh"
@@ -132,6 +148,22 @@ ENV_MAPPING: dict[tuple[str, ...], tuple[str, Any]] = {
     ("moderation", "device"): ("STREAMA_AI_DEVICE", str),
     ("moderation", "qwen_device"): ("STREAMA_AI_QWEN_DEVICE", str),
     ("moderation", "preload_models"): ("STREAMA_AI_PRELOAD_MODELS", bool),
+    ("moderation", "segment_axis"): ("STREAMA_AI_SEGMENT_AXIS", str),
+    ("moderation", "scene_window_seconds"): ("STREAMA_AI_SCENE_WINDOW_SECONDS", float),
+    ("moderation", "scene_min_segment_seconds"): ("STREAMA_AI_SCENE_MIN_SEGMENT_SECONDS", float),
+    ("moderation", "scene_detection_enabled"): ("STREAMA_AI_SCENE_DETECTION_ENABLED", bool),
+    ("moderation", "scene_sample_fps"): ("STREAMA_AI_SCENE_SAMPLE_FPS", float),
+    ("moderation", "scene_min_gap_seconds"): ("STREAMA_AI_SCENE_MIN_GAP_SECONDS", float),
+    ("moderation", "scene_adaptive_multiplier"): ("STREAMA_AI_SCENE_ADAPTIVE_MULTIPLIER", float),
+    ("moderation", "scene_min_score"): ("STREAMA_AI_SCENE_MIN_SCORE", float),
+    ("moderation", "qwen_audit_mode"): ("STREAMA_AI_QWEN_AUDIT_MODE", str),
+    ("moderation", "qwen_review_window_mode"): ("STREAMA_AI_QWEN_REVIEW_WINDOW_MODE", str),
+    ("moderation", "qwen_single_window_seconds"): ("STREAMA_AI_QWEN_SINGLE_WINDOW_SECONDS", float),
+    ("moderation", "qwen_adaptive_min_window_seconds"): ("STREAMA_AI_QWEN_ADAPTIVE_MIN_WINDOW_SECONDS", float),
+    ("moderation", "qwen_adaptive_max_window_seconds"): ("STREAMA_AI_QWEN_ADAPTIVE_MAX_WINDOW_SECONDS", float),
+    ("moderation", "qwen_adaptive_target_window_seconds"): ("STREAMA_AI_QWEN_ADAPTIVE_TARGET_WINDOW_SECONDS", float),
+    ("moderation", "qwen_risk_focus_window_seconds"): ("STREAMA_AI_QWEN_RISK_FOCUS_WINDOW_SECONDS", float),
+    ("moderation", "qwen_single_max_frames_per_window"): ("STREAMA_AI_QWEN_SINGLE_MAX_FRAMES_PER_WINDOW", int),
     ("moderation", "trace_model_inputs"): ("STREAMA_AI_TRACE_MODEL_INPUTS", bool),
     ("moderation", "trace_dir"): ("STREAMA_AI_TRACE_DIR", str),
 }

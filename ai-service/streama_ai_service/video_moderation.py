@@ -1,5 +1,6 @@
 # audio_moderation_service.py
 import hashlib
+import inspect
 import json
 import numpy as np
 import torch
@@ -225,6 +226,22 @@ class VideoModerationService:
         qwen_device='cuda',
         trace_model_inputs=True,
         trace_dir="./audit_results/model_input_traces",
+        segment_axis="visual",
+        scene_window_seconds=10.0,
+        scene_min_segment_seconds=2.0,
+        scene_detection_enabled=True,
+        scene_sample_fps=4.0,
+        scene_min_gap_seconds=1.0,
+        scene_adaptive_multiplier=2.5,
+        scene_min_score=25.0,
+        qwen_audit_mode="single",
+        qwen_review_window_mode="adaptive",
+        qwen_single_window_seconds=10.0,
+        qwen_adaptive_min_window_seconds=5.0,
+        qwen_adaptive_max_window_seconds=30.0,
+        qwen_adaptive_target_window_seconds=20.0,
+        qwen_risk_focus_window_seconds=8.0,
+        qwen_single_max_frames_per_window=12,
     ):
         """
         初始化视频审核服务
@@ -266,6 +283,37 @@ class VideoModerationService:
         self._trace_session_dir = None
         self._trace_session_id = None
         self._trace_files = []
+        self.segment_axis = str(segment_axis or "visual").strip().lower()
+        self.scene_window_seconds = max(1.0, float(scene_window_seconds or 10.0))
+        self.scene_min_segment_seconds = max(0.0, float(scene_min_segment_seconds or 2.0))
+        self.scene_detection_enabled = bool(scene_detection_enabled)
+        self.scene_sample_fps = max(0.1, float(scene_sample_fps or 4.0))
+        self.scene_min_gap_seconds = max(0.0, float(scene_min_gap_seconds or 1.0))
+        self.scene_adaptive_multiplier = max(1.0, float(scene_adaptive_multiplier or 2.5))
+        self.scene_min_score = max(0.0, float(scene_min_score or 25.0))
+        self.qwen_audit_mode = "single"
+        if str(qwen_audit_mode or "single").strip().lower() != "single":
+            print("Only single review-window Qwen audit is supported; using single mode.")
+        self.qwen_review_window_mode = str(qwen_review_window_mode or "adaptive").strip().lower()
+        if self.qwen_review_window_mode not in {"adaptive", "fixed"}:
+            print(f"Unsupported review window mode '{qwen_review_window_mode}', using adaptive mode.")
+            self.qwen_review_window_mode = "adaptive"
+        self.qwen_single_window_seconds = max(1.0, float(qwen_single_window_seconds or 10.0))
+        self.qwen_adaptive_min_window_seconds = max(1.0, float(qwen_adaptive_min_window_seconds or 5.0))
+        self.qwen_adaptive_max_window_seconds = max(
+            self.qwen_adaptive_min_window_seconds,
+            float(qwen_adaptive_max_window_seconds or 30.0),
+        )
+        self.qwen_adaptive_target_window_seconds = min(
+            self.qwen_adaptive_max_window_seconds,
+            max(self.qwen_adaptive_min_window_seconds, float(qwen_adaptive_target_window_seconds or 20.0)),
+        )
+        self.qwen_risk_focus_window_seconds = max(
+            self.qwen_adaptive_min_window_seconds,
+            float(qwen_risk_focus_window_seconds or 8.0),
+        )
+        self.qwen_single_max_frames_per_window = max(1, int(qwen_single_max_frames_per_window or 12))
+        self.qwen_audit_stats = {}
 
         # VAD配置
         self.vad = None
@@ -457,10 +505,11 @@ class VideoModerationService:
         return self._trace_session_dir
 
     def _build_trace_base_name(self, segment):
+        prefix = "window" if segment.get("source_type") in {"review_window", "adaptive_review_window"} else "segment"
         segment_id = self._sanitize_trace_part(segment.get("segment_id"))
         start = self._sanitize_trace_part(f"{float(segment.get('start', 0.0) or 0.0):.2f}s")
         end = self._sanitize_trace_part(f"{float(segment.get('end', 0.0) or 0.0):.2f}s")
-        return f"segment_{segment_id}_{start}_{end}"
+        return f"{prefix}_{segment_id}_{start}_{end}"
 
     def _copy_trace_image(self, segment, image_path):
         if not image_path:
@@ -520,6 +569,10 @@ class VideoModerationService:
             "source_text_time_range": segment.get("source_text_time_range") or "",
             "text_scope": segment.get("text_scope") or "window",
             "source_type": segment.get("source_type"),
+            "review_window_mode": segment.get("review_window_mode") or "",
+            "review_window_seconds": segment.get("review_window_seconds"),
+            "source_scene_segment_ids": segment.get("source_scene_segment_ids") or [],
+            "source_scene_segment_count": segment.get("source_scene_segment_count", 0),
             "metadata_summary": segment.get("metadata_summary") or "",
             "sound_summary": segment.get("sound_summary") or "",
             "text_policy_summary": segment.get("text_policy_summary") or "",
@@ -566,6 +619,7 @@ class VideoModerationService:
                 return ""
             trace_path = trace_session / f"{self._build_trace_base_name(segment)}.json"
             payload = {
+                "trace_type": "qwen",
                 "trace_session_id": self._trace_session_id,
                 "created_at": datetime.now().isoformat(timespec="seconds"),
                 "prompt": prompt or "",
@@ -1544,7 +1598,68 @@ class VideoModerationService:
         clamped = max(0.0, min(float(timestamp), (total_frames - 1) / fps))
         target_indices.add(int(round(clamped * fps)))
 
-    def extract_keyframes(self, video_path, extraction_rate=1, focus_times=None):
+    def detect_scene_cuts(self, video_path):
+        if not self.scene_detection_enabled:
+            return []
+        cap = cv2.VideoCapture(video_path)
+        try:
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if not cap.isOpened() or fps <= 0 or total_frames <= 0:
+                return []
+
+            sample_interval = max(1, int(round(fps / self.scene_sample_fps)))
+            previous = None
+            scores = []
+            frame_count = 0
+
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                if frame_count % sample_interval != 0:
+                    frame_count += 1
+                    continue
+
+                timestamp = frame_count / fps
+                small = cv2.resize(frame, (160, 90))
+                hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+                hist = cv2.calcHist([hsv], [0, 1], None, [24, 16], [0, 180, 0, 256])
+                cv2.normalize(hist, hist)
+                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+                edges = cv2.Canny(gray, 100, 200)
+                feature = {"hist": hist, "gray": gray, "edges": edges}
+
+                if previous is not None:
+                    hist_diff = cv2.compareHist(previous["hist"], hist, cv2.HISTCMP_BHATTACHARYYA) * 100.0
+                    gray_diff = float(np.mean(cv2.absdiff(previous["gray"], gray)))
+                    edge_diff = float(np.mean(cv2.absdiff(previous["edges"], edges))) / 255.0 * 100.0
+                    score = hist_diff * 0.50 + gray_diff * 0.30 + edge_diff * 0.20
+                    scores.append((timestamp, score))
+
+                previous = feature
+                frame_count += 1
+
+            cut_times = []
+            rolling_window = 8
+            last_cut_time = -float("inf")
+            all_scores = [score for _, score in scores]
+            global_median = float(np.median(all_scores)) if all_scores else 0.0
+
+            for index, (timestamp, score) in enumerate(scores):
+                history = [item[1] for item in scores[max(0, index - rolling_window):index]]
+                baseline = float(np.median(history)) if history else global_median
+                threshold = max(self.scene_min_score, baseline * self.scene_adaptive_multiplier)
+                if score >= threshold and timestamp - last_cut_time >= self.scene_min_gap_seconds:
+                    cut_times.append(round(float(timestamp), 2))
+                    last_cut_time = timestamp
+
+            print(f"Detected {len(cut_times)} scene cuts with OpenCV.")
+            return cut_times
+        finally:
+            cap.release()
+
+    def extract_keyframes(self, video_path, extraction_rate=1, focus_times=None, scene_cut_times=None):
         """
         从视频中提取关键帧
         
@@ -1580,38 +1695,29 @@ class VideoModerationService:
             if frame_interval < 1:
                 frame_interval = 1
             required_frame_indices = set()
+            frame_reasons = {}
+
+            def require_frame_time(timestamp, reason):
+                if timestamp is None or fps <= 0 or total_frames <= 0:
+                    return
+                clamped = max(0.0, min(float(timestamp), (total_frames - 1) / fps))
+                frame_index = int(round(clamped * fps))
+                required_frame_indices.add(frame_index)
+                frame_reasons.setdefault(frame_index, []).append(reason)
+
             for timestamp in [0.0, 1.0, 2.0, duration - 2.0, duration - 1.0, duration - (1.0 / fps)]:
-                self._add_frame_index_for_time(required_frame_indices, timestamp, fps, total_frames)
+                require_frame_time(timestamp, "required")
             for timestamp in focus_times or []:
                 for offset in (-0.5, 0.0, 0.5):
-                    self._add_frame_index_for_time(required_frame_indices, float(timestamp) + offset, fps, total_frames)
+                    require_frame_time(float(timestamp) + offset, "audio_risk_focus")
+            for timestamp in scene_cut_times or []:
+                for offset, reason in [(-0.5, "scene_cut_before"), (0.0, "scene_cut"), (0.5, "scene_cut_after")]:
+                    require_frame_time(float(timestamp) + offset, reason)
             
             frames_info = []
             frame_count = 0
             extracted_count = 0
             saved_frame_counts = set()
-            previous_frame = None
-            previous_small = None
-            previous_frame_count = None
-            capture_next_transition = False
-            transition_threshold = 35.0
-
-            def save_frame(frame_to_save, source_frame_count, reason):
-                nonlocal extracted_count
-                if frame_to_save is None or source_frame_count in saved_frame_counts:
-                    return
-                timestamp_to_save = source_frame_count / fps
-                frame_path = frames_dir / f"frame_{extracted_count:04d}_{timestamp_to_save:.2f}s.jpg"
-                cv2.imwrite(str(frame_path), frame_to_save)
-                frames_info.append({
-                    "frame_id": extracted_count,
-                    "timestamp": round(timestamp_to_save, 2),
-                    "path": str(frame_path),
-                    "frame_count": source_frame_count,
-                    "reasons": [reason],
-                })
-                saved_frame_counts.add(source_frame_count)
-                extracted_count += 1
             
             while True:
                 ret, frame = cap.read()
@@ -1630,26 +1736,11 @@ class VideoModerationService:
                         "frame_id": extracted_count,
                         "timestamp": round(timestamp, 2),
                         "path": str(frame_path),
-                        "frame_count": frame_count
+                        "frame_count": frame_count,
+                        "reasons": frame_reasons.get(frame_count),
                     })
                     saved_frame_counts.add(frame_count)
                     extracted_count += 1
-                
-                small = cv2.resize(frame, (96, 54))
-                small = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-                if previous_small is not None:
-                    diff = float(np.mean(cv2.absdiff(previous_small, small)))
-                    if diff >= transition_threshold:
-                        save_frame(previous_frame, previous_frame_count, "transition_before")
-                        save_frame(frame, frame_count, "transition_after")
-                        capture_next_transition = True
-                    elif capture_next_transition:
-                        save_frame(frame, frame_count, "transition_followup")
-                        capture_next_transition = False
-
-                previous_frame = frame.copy()
-                previous_small = small
-                previous_frame_count = frame_count
 
                 frame_count += 1
             
@@ -2283,7 +2374,8 @@ class VideoModerationService:
             for index, thumb in enumerate(thumbs):
                 sheet.paste(thumb, ((index % columns) * 320, (index // columns) * 180))
             base_path = Path(segment.get("best_frame_path") or frames[0]["path"])
-            sheet_path = base_path.parent / f"segment_{segment.get('segment_id', 'unknown')}_contact.jpg"
+            prefix = "window" if segment.get("source_type") in {"review_window", "adaptive_review_window"} else "segment"
+            sheet_path = base_path.parent / f"{prefix}_{segment.get('segment_id', 'unknown')}_contact.jpg"
             sheet.save(sheet_path, quality=90)
             return str(sheet_path)
         except Exception as exc:
@@ -2357,6 +2449,128 @@ class VideoModerationService:
             windows.append((float(start), float(end)))
         return windows
 
+    def _merge_short_windows(self, windows, min_seconds):
+        merged = [(float(start), float(end)) for start, end in windows if float(end) > float(start)]
+        if min_seconds <= 0:
+            return merged
+        index = 0
+        while len(merged) > 1 and index < len(merged):
+            start, end = merged[index]
+            if end - start >= min_seconds:
+                index += 1
+                continue
+            if index == 0:
+                merged[1] = (start, merged[1][1])
+                del merged[0]
+            elif index == len(merged) - 1:
+                merged[index - 1] = (merged[index - 1][0], end)
+                del merged[index]
+                index = max(0, index - 1)
+            else:
+                prev_duration = merged[index - 1][1] - merged[index - 1][0]
+                next_duration = merged[index + 1][1] - merged[index + 1][0]
+                if prev_duration <= next_duration:
+                    merged[index - 1] = (merged[index - 1][0], end)
+                    del merged[index]
+                    index = max(0, index - 1)
+                else:
+                    merged[index + 1] = (start, merged[index + 1][1])
+                    del merged[index]
+        return merged
+
+    def _build_visual_windows(self, duration, scene_cut_times=None, sound_events=None):
+        duration = float(max(duration or 0.0, 0.0))
+        if duration <= 0:
+            risk_sound_times = [
+                float(event.get("time", 0.0))
+                for event in sound_events or []
+                if event.get("is_risk")
+            ]
+            return [
+                (max(0.0, time - 1.0), time + 1.0)
+                for time in risk_sound_times
+            ]
+
+        base_boundaries = {0.0, duration}
+        for cut_time in scene_cut_times or []:
+            try:
+                cut = float(cut_time)
+            except Exception:
+                continue
+            if 0.0 < cut < duration:
+                base_boundaries.add(cut)
+        for event in sound_events or []:
+            if not event.get("is_risk"):
+                continue
+            try:
+                time = float(event.get("time", 0.0))
+            except Exception:
+                continue
+            for boundary in (time - 1.0, time + 1.0):
+                if 0.0 < boundary < duration:
+                    base_boundaries.add(boundary)
+
+        base = sorted(base_boundaries)
+        boundaries = {0.0, duration}
+        max_window = max(1.0, float(self.scene_window_seconds or 10.0))
+        for start, end in zip(base, base[1:]):
+            if end <= start:
+                continue
+            boundaries.add(start)
+            boundaries.add(end)
+            current = start + max_window
+            while current < end:
+                boundaries.add(round(current, 2))
+                current += max_window
+
+        sorted_boundaries = []
+        for boundary in sorted(boundaries):
+            clamped = max(0.0, min(float(boundary), duration))
+            if not sorted_boundaries or abs(clamped - sorted_boundaries[-1]) > 0.05:
+                sorted_boundaries.append(clamped)
+        windows = [
+            (start, end)
+            for start, end in zip(sorted_boundaries, sorted_boundaries[1:])
+            if end > start
+        ]
+        return self._merge_short_windows(windows, self.scene_min_segment_seconds)
+
+    def _transcription_word_timestamps(self, transcriptions):
+        words = []
+        contexts = []
+        for trans in transcriptions or []:
+            start = float(trans.get("start", 0.0))
+            end = float(trans.get("end", start))
+            text = str(trans.get("text") or "")
+            word_timestamps = list(trans.get("words") or [])
+            if not word_timestamps:
+                for whisper_segment in trans.get("segments") or []:
+                    if isinstance(whisper_segment, dict):
+                        word_timestamps.extend(whisper_segment.get("words") or [])
+            word_timestamps = [
+                word for word in word_timestamps
+                if isinstance(word, dict)
+                and (
+                    self._float_or_none(word.get("start")) is not None
+                    or self._float_or_none(word.get("end")) is not None
+                )
+            ]
+            words.extend(word_timestamps)
+            contexts.append({
+                "start": start,
+                "end": end,
+                "text": text,
+                "has_words": bool(word_timestamps),
+            })
+        words.sort(key=lambda word: (
+            self._float_or_none(word.get("start")) or self._float_or_none(word.get("end")) or 0.0
+        ))
+        return words, contexts
+
+    @staticmethod
+    def _ranges_overlap(start, end, other_start, other_end):
+        return float(end) > float(other_start) and float(start) < float(other_end)
+
     def build_audit_segments(
         self,
         transcriptions,
@@ -2366,6 +2580,7 @@ class VideoModerationService:
         video_meta=None,
         item_meta=None,
         coverage_issues=None,
+        scene_cut_times=None,
     ):
         metadata_summary = self._build_metadata_summary(video_meta, item_meta)
         sound_events = sound_events or []
@@ -2381,99 +2596,49 @@ class VideoModerationService:
                 end = min(end, duration)
             return start, max(start, end)
 
-        max_speech_window_seconds = 30.0
-
-        for trans in sorted(transcriptions or [], key=lambda item: float(item.get("start", 0.0))):
-            start, end = clamp_window(trans.get("start", 0.0), trans.get("end", 0.0))
-            if duration > 0 and end <= start:
-                continue
-            text = str(trans.get("text") or "")
-            word_timestamps = list(trans.get("words") or [])
-            if not word_timestamps:
-                for whisper_segment in trans.get("segments") or []:
-                    if isinstance(whisper_segment, dict):
-                        word_timestamps.extend(whisper_segment.get("words") or [])
-            word_timestamps = [
-                word for word in word_timestamps
-                if isinstance(word, dict)
-                and (
-                    self._float_or_none(word.get("start")) is not None
-                    or self._float_or_none(word.get("end")) is not None
-                )
-            ]
-            speech_windows = self._split_windows(start, end, window_seconds=max_speech_window_seconds)
-            is_long_text = len(speech_windows) > 1 or (end - start) > max_speech_window_seconds
-            source_text_time_range = f"{start:.2f}s-{end:.2f}s" if is_long_text else ""
-            for window_start, window_end in speech_windows:
-                window_start, window_end = clamp_window(window_start, window_end)
-                if duration > 0 and window_end <= window_start:
-                    continue
-                if word_timestamps:
-                    window_words = self._words_for_window(word_timestamps, window_start, window_end)
-                    window_text = self._join_word_text(window_words)
-                    if not window_text and not is_long_text:
-                        window_text = text
-                    text_scope = "window"
-                elif is_long_text:
-                    window_text = ""
-                    text_scope = "source_transcript_context"
-                else:
-                    window_text = text
-                    text_scope = "window"
-                segment = self._build_audit_segment(
-                    next_segment_id,
-                    window_start,
-                    window_end,
-                    window_text,
-                    frames_info,
-                    metadata_summary,
-                    "speech",
-                    coverage_issues,
-                    long_text_context=is_long_text,
-                    source_transcript_text=text if is_long_text else "",
-                    source_text_time_range=source_text_time_range,
-                    text_scope=text_scope,
-                )
-                segments.append(segment)
-                next_segment_id += 1
-
-        speech_ranges = []
-        for item in transcriptions or []:
-            start, end = clamp_window(item.get("start", 0.0), item.get("end", 0.0))
-            if duration <= 0 or end > start:
-                speech_ranges.append((start, end))
-        visual_windows = []
-        if not speech_ranges:
-            visual_windows = self._split_windows(0.0, duration, window_seconds=30.0)
-        else:
-            cursor = 0.0
-            for start, end in sorted(speech_ranges):
-                if start - cursor > 2.0:
-                    visual_windows.extend(self._split_windows(cursor, start, window_seconds=30.0))
-                cursor = max(cursor, end)
-            if duration - cursor > 2.0:
-                visual_windows.extend(self._split_windows(cursor, duration, window_seconds=30.0))
-
-        if not frames_info and not visual_windows:
-            risk_sound_times = [float(event.get("time", 0.0)) for event in sound_events if event.get("is_risk")]
-            visual_windows = [
-                clamp_window(max(0.0, time - 1.0), time + 1.0)
-                for time in risk_sound_times
-            ]
+        all_words, transcript_contexts = self._transcription_word_timestamps(transcriptions)
+        visual_windows = self._build_visual_windows(duration, scene_cut_times, sound_events)
 
         for start, end in visual_windows:
             start, end = clamp_window(start, end)
             if duration > 0 and end <= start:
                 continue
+            window_words = self._words_for_window(all_words, start, end)
+            window_text = self._join_word_text(window_words)
+            overlapping_contexts = [
+                context for context in transcript_contexts
+                if self._ranges_overlap(start, end, context["start"], context["end"])
+            ]
+            if not window_text:
+                fallback_texts = [
+                    context["text"] for context in overlapping_contexts
+                    if context["text"]
+                    and not context["has_words"]
+                    and (context["end"] - context["start"]) <= self.scene_window_seconds
+                ]
+                window_text = " ".join(fallback_texts).strip()
+            long_contexts = [
+                context for context in overlapping_contexts
+                if context["text"] and (context["end"] - context["start"]) > self.scene_window_seconds
+            ]
+            source_transcript_text = " ".join(context["text"] for context in long_contexts).strip()
+            source_text_time_range = ", ".join(
+                f"{context['start']:.2f}s-{context['end']:.2f}s"
+                for context in long_contexts
+            )
             segment = self._build_audit_segment(
                 next_segment_id,
                 start,
                 end,
-                "",
+                window_text,
                 frames_info,
                 metadata_summary,
-                "visual_fallback",
+                "visual_scene",
                 coverage_issues,
+                long_text_context=bool(source_transcript_text),
+                source_transcript_text=source_transcript_text,
+                source_text_time_range=source_text_time_range,
+                text_scope="window",
             )
             segments.append(segment)
             next_segment_id += 1
@@ -2489,7 +2654,7 @@ class VideoModerationService:
                 "",
                 frames_info,
                 metadata_summary,
-                "visual_fallback",
+                "visual_scene",
                 coverage_issues,
             )
             segments.append(segment)
@@ -2506,96 +2671,462 @@ class VideoModerationService:
         print(f"Built {len(segments)} audit segments for multimodal moderation.")
         return segments
 
-    def align_text_with_frames(self, transcriptions, frames_info):
-        """
-        将转写的文本与视频帧对齐
-        
-        Args:
-            transcriptions: Whisper转写结果（带时间戳）
-            frames_info: 关键帧信息列表（带时间戳）
-            
-        Returns:
-            list: 对齐后的结果，每个段落包含文本和对应的帧
-        """
-        print("开始音画对齐...")
-        
-        aligned_segments = []
-        
-        for trans in transcriptions:
-            segment_start = trans['start']
-            segment_end = trans['end']
-            segment_mid = (segment_start + segment_end) / 2
-            
-            # 找到最接近该段落中间时间的帧
-            best_frame = None
-            min_time_diff = float('inf')
-            
-            for frame in frames_info:
-                time_diff = abs(frame['timestamp'] - segment_mid)
-                if time_diff < min_time_diff:
-                    min_time_diff = time_diff
-                    best_frame = frame
-            
-            # 如果找到的帧时间差太大（超过2秒），可能不匹配
-            if min_time_diff > 2.0:
-                print(f"⚠️ 段落 {trans['segment_id']} 时间 {segment_mid:.2f}s 附近无匹配帧，最近帧在 {best_frame['timestamp']:.2f}s")
-            
-            # 同时找出该时间段内的所有帧（用于详细分析）
-            segment_frames = []
-            for frame in frames_info:
-                if segment_start - 0.5 <= frame['timestamp'] <= segment_end + 0.5:
-                    segment_frames.append(frame)
-            
-            # 构建对齐结果
-            aligned = trans.copy()
-            aligned.update({
-                "best_frame": best_frame,
-                "best_frame_time": best_frame['timestamp'] if best_frame else None,
-                "best_frame_path": best_frame['path'] if best_frame else None,
-                "segment_frames": segment_frames[:5],  # 最多保留5帧
-                "frame_count": len(segment_frames),
-                "time_diff": min_time_diff if best_frame else None
-            })
-            
-            aligned_segments.append(aligned)
-            
-            # 打印对齐信息
-            frame_marker = "✅" if min_time_diff < 1.0 else "⚠️" if min_time_diff < 2.0 else "❌"
-            print(f"  {frame_marker} 段落 {trans['segment_id']}: 时间 {segment_start:.2f}s-{segment_end:.2f}s → 帧时间 {best_frame['timestamp']:.2f}s (偏差 {min_time_diff:.2f}s)")
-        
-        print(f"✅ 音画对齐完成，共处理 {len(aligned_segments)} 个段落")
-        return aligned_segments
-    
-    def print_aligned_segments(self, aligned_segments):
-        """
-        打印对齐后的段落信息
-        
-        Args:
-            aligned_segments: 对齐后的段落列表
-        """
-        if not aligned_segments:
-            print("没有对齐结果")
-            return
-        
-        print("\n🎯 音画对齐结果:")
-        print("=" * 80)
-        
-        for i, seg in enumerate(aligned_segments):
-            print(f"[段落 {seg['segment_id']}] {seg['start']:.2f}s - {seg['end']:.2f}s")
-            print(f"文本: {seg['text'][:80]}...")
-            
-            if seg['best_frame']:
-                marker = "✓" if seg['time_diff'] < 1.0 else "⚠" if seg['time_diff'] < 2.0 else "✗"
-                print(f"   {marker} 匹配帧: 时间 {seg['best_frame_time']:.2f}s (偏差 {seg['time_diff']:.2f}s)")
-                print(f"     路径: {seg['best_frame_path']}")
+    @staticmethod
+    def _dedupe_text_values(values):
+        result = []
+        seen = set()
+        for value in values or []:
+            text = str(value or "").strip()
+            if not text or text in seen:
+                continue
+            result.append(text)
+            seen.add(text)
+        return result
+
+    @staticmethod
+    def _event_key(event):
+        return (
+            round(float(event.get("time", 0.0) or 0.0), 2),
+            str(event.get("class") or ""),
+            str(event.get("risk_category") or ""),
+        )
+
+    @classmethod
+    def _dedupe_events(cls, events):
+        result = []
+        seen = set()
+        for event in events or []:
+            if not isinstance(event, dict):
+                continue
+            key = cls._event_key(event)
+            if key in seen:
+                continue
+            result.append(event)
+            seen.add(key)
+        return sorted(result, key=lambda item: float(item.get("time", 0.0) or 0.0))
+
+    def _format_review_window_sound_summary(self, sound_events, risk_sounds):
+        if risk_sounds:
+            parts = [
+                f"{event.get('class', 'unknown')}({float(event.get('confidence') or 0.0):.2f})"
+                for event in risk_sounds[:3]
+            ]
+            return f"Risk audio detected: {', '.join(parts)}"
+        if sound_events:
+            classes = self._dedupe_text_values(event.get("class") for event in sound_events)[:3]
+            return f"Background audio: {', '.join(classes)}" if classes else "Background audio: no special sound"
+        return "Background audio: no special sound"
+
+    def _select_review_window_frames(self, source_segments, start, end):
+        max_count = max(1, int(self.qwen_single_max_frames_per_window or 12))
+        risk_times = [
+            float(event.get("time", 0.0) or 0.0)
+            for segment in source_segments
+            for event in (segment.get("risk_sounds") or [])
+        ]
+        best_paths = {
+            str(segment.get("best_frame_path") or "")
+            for segment in source_segments
+            if segment.get("best_frame_path")
+        }
+        buckets = {0: [], 1: [], 2: [], 3: []}
+        seen_paths = set()
+        seen_signatures = set()
+
+        def frame_signature(path):
+            try:
+                image = Image.open(path).convert("L")
+                image.thumbnail((16, 16))
+                signature = tuple(int(pixel) // 16 for pixel in image.tobytes())
+                image.close()
+                return signature
+            except Exception:
+                return None
+
+        def add_frame(frame):
+            path = str(frame.get("path") or "")
+            if not path or path in seen_paths or not Path(path).exists():
+                return
+            timestamp = self._float_or_none(frame.get("timestamp"))
+            if timestamp is not None and not (float(start) - 0.75 <= timestamp <= float(end) + 0.75):
+                return
+            reasons = list(frame.get("reasons") or [])
+            reason_text = " ".join(str(reason) for reason in reasons)
+            priority = 3
+            if timestamp is not None and risk_times and min(abs(timestamp - risk_time) for risk_time in risk_times) <= 1.25:
+                priority = 0
+            elif "audio_risk_focus" in reason_text:
+                priority = 0
+            elif "scene_cut" in reason_text or "transition" in reason_text:
+                priority = 1
+            elif path in best_paths:
+                priority = 2
+            signature = frame_signature(path)
+            if signature is not None and signature in seen_signatures and priority > 1:
+                return
+            copied = dict(frame)
+            copied["reasons"] = reasons
+            buckets[priority].append(copied)
+            seen_paths.add(path)
+            if signature is not None:
+                seen_signatures.add(signature)
+
+        for segment in source_segments:
+            for frame in segment.get("segment_frames") or []:
+                add_frame(frame)
+            if segment.get("best_frame_path"):
+                add_frame({
+                    "frame_id": f"best_{segment.get('segment_id')}",
+                    "timestamp": segment.get("best_frame_time"),
+                    "path": segment.get("best_frame_path"),
+                    "frame_count": None,
+                    "reasons": ["source_scene_best_frame"],
+                })
+
+        selected = []
+        for priority in (0, 1, 2):
+            for frame in sorted(buckets[priority], key=lambda item: float(item.get("timestamp") or 0.0)):
+                if len(selected) >= max_count:
+                    break
+                selected.append(frame)
+        remaining_slots = max_count - len(selected)
+        if remaining_slots > 0:
+            rest = sorted(buckets[3], key=lambda item: float(item.get("timestamp") or 0.0))
+            selected.extend(self._sample_frames(rest, max_count=remaining_slots))
+
+        selected = sorted(selected[:max_count], key=lambda item: float(item.get("timestamp") or 0.0))
+        midpoint = (float(start) + float(end)) / 2
+        best_frame = min(
+            selected,
+            key=lambda frame: abs(float(frame.get("timestamp") or midpoint) - midpoint),
+        ) if selected else None
+        time_diff = abs(float(best_frame.get("timestamp") or midpoint) - midpoint) if best_frame else None
+        return selected, best_frame, time_diff
+
+    @staticmethod
+    def _dedupe_policy_matches(matches):
+        result = []
+        seen = set()
+        for match in matches or []:
+            if not isinstance(match, dict):
+                continue
+            try:
+                key = json.dumps(match, ensure_ascii=False, sort_keys=True)
+            except Exception:
+                key = str(match)
+            if key in seen:
+                continue
+            result.append(match)
+            seen.add(key)
+        return result
+
+    def _normalize_review_window_range(self, start, end, duration, min_seconds=None):
+        duration = max(0.0, float(duration or 0.0))
+        min_seconds = max(0.0, float(min_seconds or 0.0))
+        start = max(0.0, min(float(start or 0.0), duration))
+        end = max(0.0, min(float(end or 0.0), duration))
+        if end < start:
+            start, end = end, start
+        if duration <= 0:
+            return (0.0, 0.0)
+        if end - start < min_seconds:
+            center = (start + end) / 2
+            half = min_seconds / 2
+            start = max(0.0, center - half)
+            end = min(duration, center + half)
+            if end - start < min_seconds:
+                if start <= 0:
+                    end = min(duration, min_seconds)
+                elif end >= duration:
+                    start = max(0.0, duration - min_seconds)
+        return (round(start, 2), round(end, 2))
+
+    def _merge_review_window_ranges(self, ranges, duration, merge_gap=0.0, max_seconds=None):
+        normalized = [
+            self._normalize_review_window_range(start, end, duration)
+            for start, end in ranges or []
+        ]
+        normalized = [(start, end) for start, end in normalized if end > start]
+        if not normalized:
+            return []
+
+        merged = []
+        for start, end in sorted(normalized):
+            if not merged or start - merged[-1][1] > float(merge_gap or 0.0):
+                merged.append([start, end])
             else:
-                print("   ✗ 无匹配帧")
-            
-            print(f"   该时段共有 {seg['frame_count']} 帧")
-            print("-" * 40)
-        
-        print(f"总计: {len(aligned_segments)} 个段落完成对齐")
-        print("=" * 80)
+                merged[-1][1] = max(merged[-1][1], end)
+
+        max_seconds = float(max_seconds or 0.0)
+        if max_seconds <= 0:
+            return [(round(start, 2), round(end, 2)) for start, end in merged]
+
+        split = []
+        min_seconds = self.qwen_adaptive_min_window_seconds
+        for start, end in merged:
+            current = start
+            while end - current > max_seconds + 0.001:
+                split.append((round(current, 2), round(current + max_seconds, 2)))
+                current += max_seconds
+            if end - current > 0.001:
+                if split and end - current < min_seconds and abs(split[-1][1] - current) < 0.01:
+                    split[-1] = (split[-1][0], round(end, 2))
+                else:
+                    split.append((round(current, 2), round(end, 2)))
+        return split
+
+    def _segments_for_window(self, ordered_segments, start, end):
+        return [
+            segment for segment in ordered_segments
+            if self._ranges_overlap(start, end, segment.get("start", 0.0), segment.get("end", 0.0))
+        ]
+
+    def _has_non_metadata_policy_match(self, segment):
+        return any(
+            match.get("source") != "metadata_text"
+            for match in (segment.get("text_policy_matches") or [])
+            if isinstance(match, dict)
+        )
+
+    def _build_focus_window_ranges(self, ordered_segments, duration):
+        focus_seconds = min(
+            self.qwen_adaptive_max_window_seconds,
+            max(self.qwen_adaptive_min_window_seconds, self.qwen_risk_focus_window_seconds),
+        )
+        half_focus = focus_seconds / 2
+        ranges = []
+
+        for segment in ordered_segments:
+            segment_start = float(segment.get("start", 0.0) or 0.0)
+            segment_end = float(segment.get("end", segment_start) or segment_start)
+
+            for event in segment.get("risk_sounds") or []:
+                event_time = self._float_or_none(event.get("time"))
+                if event_time is None:
+                    continue
+                ranges.append((event_time - half_focus, event_time + half_focus))
+
+            if self._has_non_metadata_policy_match(segment):
+                center = (segment_start + segment_end) / 2
+                ranges.append((
+                    min(segment_start, center - half_focus),
+                    max(segment_end, center + half_focus),
+                ))
+
+        normalized = [
+            self._normalize_review_window_range(
+                start,
+                end,
+                duration,
+                min_seconds=self.qwen_adaptive_min_window_seconds,
+            )
+            for start, end in ranges
+        ]
+        return self._merge_review_window_ranges(
+            normalized,
+            duration,
+            merge_gap=self.qwen_adaptive_min_window_seconds / 2,
+            max_seconds=self.qwen_adaptive_max_window_seconds,
+        )
+
+    def _split_coverage_gap(self, ordered_segments, start, end):
+        start = float(start)
+        end = float(end)
+        if end - start <= 0.001:
+            return []
+
+        source_segments = self._segments_for_window(ordered_segments, start, end)
+        gap_duration = max(end - start, 0.001)
+        scene_density = len(source_segments) / gap_duration
+        max_window = self.qwen_adaptive_max_window_seconds
+        if scene_density >= 0.45:
+            max_window = min(max_window, max(self.qwen_adaptive_min_window_seconds, 15.0))
+        elif scene_density >= 0.20:
+            max_window = min(max_window, self.qwen_adaptive_target_window_seconds)
+
+        ranges = []
+        current = start
+        while end - current > max_window + 0.001:
+            next_end = current + max_window
+            ranges.append((round(current, 2), round(next_end, 2)))
+            current = next_end
+        if end - current > 0.001:
+            if ranges and end - current < self.qwen_adaptive_min_window_seconds:
+                ranges[-1] = (ranges[-1][0], round(end, 2))
+            else:
+                ranges.append((round(current, 2), round(end, 2)))
+        return ranges
+
+    def _build_coverage_window_ranges(self, ordered_segments, duration, focus_ranges):
+        coverage = []
+        cursor = 0.0
+        for focus_start, focus_end in sorted(focus_ranges or []):
+            if focus_start > cursor + 0.001:
+                coverage.extend(self._split_coverage_gap(ordered_segments, cursor, focus_start))
+            cursor = max(cursor, focus_end)
+        if cursor < duration - 0.001:
+            coverage.extend(self._split_coverage_gap(ordered_segments, cursor, duration))
+        return coverage
+
+    def _build_review_window_from_sources(
+        self,
+        window_id,
+        window_start,
+        window_end,
+        source_segments,
+        source_type,
+        review_window_mode,
+        focus_reasons=None,
+    ):
+        text_values = []
+        source_context_values = []
+        source_time_values = []
+        metadata_values = []
+        coverage_issues = []
+        policy_matches = []
+        sound_events = []
+        source_ids = []
+        for segment in source_segments:
+            source_ids.append(int(segment.get("segment_id") or 0))
+            window_text = segment.get("window_text")
+            if window_text is None:
+                window_text = segment.get("text") or ""
+            text_values.append(window_text)
+            source_context_values.append(segment.get("source_transcript_text") or "")
+            source_time_values.append(segment.get("source_text_time_range") or "")
+            metadata_values.append(segment.get("metadata_summary") or "")
+            coverage_issues.extend(segment.get("coverage_issues") or [])
+            policy_matches.extend(segment.get("text_policy_matches") or [])
+            sound_events.extend(segment.get("sound_events") or [])
+
+        window_text = " ".join(self._dedupe_text_values(text_values)).strip()
+        source_transcript_text = " ".join(self._dedupe_text_values(source_context_values)).strip()
+        source_text_time_range = ", ".join(self._dedupe_text_values(source_time_values)).strip()
+        metadata_summary = next((value for value in metadata_values if value), "")
+        policy_matches.extend(self._scan_segment_text_policy(window_text, metadata_summary))
+        policy_matches = self._dedupe_policy_matches(policy_matches)
+        sound_events = self._dedupe_events(sound_events)
+        risk_sounds = [event for event in sound_events if event.get("is_risk")]
+        segment_frames, best_frame, time_diff = self._select_review_window_frames(
+            source_segments,
+            window_start,
+            window_end,
+        )
+        modalities = []
+        if best_frame:
+            modalities.append("visual")
+        if window_text:
+            modalities.append("text")
+        if metadata_summary:
+            modalities.append("metadata_text")
+        if policy_matches:
+            modalities.append("text_policy")
+        if sound_events:
+            modalities.append("audio_event")
+
+        focus_reasons = list(dict.fromkeys(focus_reasons or []))
+        review_window = {
+            "segment_id": window_id,
+            "review_window_id": window_id,
+            "start": round(window_start, 2),
+            "end": round(window_end, 2),
+            "duration": round(max(window_end - window_start, 0.0), 2),
+            "source_type": source_type,
+            "review_window_mode": review_window_mode,
+            "review_window_seconds": round(max(window_end - window_start, 0.0), 2),
+            "focus_reasons": focus_reasons,
+            "source_scene_segment_ids": [segment_id for segment_id in source_ids if segment_id],
+            "source_scene_segment_count": len(source_segments),
+            "text": window_text,
+            "window_text": window_text,
+            "source_transcript_text": source_transcript_text,
+            "source_text_time_range": source_text_time_range,
+            "text_scope": "window",
+            "long_text_context": any(segment.get("long_text_context") for segment in source_segments),
+            "metadata_summary": metadata_summary,
+            "text_policy_matches": policy_matches,
+            "text_policy_summary": self._format_text_policy_summary(policy_matches),
+            "sound_events": sound_events,
+            "risk_sounds": risk_sounds,
+            "has_risk_sound": bool(risk_sounds),
+            "sound_summary": self._format_review_window_sound_summary(sound_events, risk_sounds),
+            "best_frame": best_frame,
+            "best_frame_time": best_frame.get("timestamp") if best_frame else None,
+            "best_frame_path": best_frame.get("path") if best_frame else None,
+            "segment_frames": segment_frames,
+            "frame_count": len(segment_frames),
+            "time_diff": time_diff,
+            "modalities": modalities,
+            "coverage_issues": list(dict.fromkeys(coverage_issues)),
+        }
+        review_window["contact_sheet_path"] = self._create_contact_sheet(
+            review_window,
+            max_images=self.qwen_single_max_frames_per_window,
+        )
+        return review_window
+
+    def build_qwen_review_windows(self, scene_segments):
+        ordered = sorted(
+            list(scene_segments or []),
+            key=lambda item: (float(item.get("start", 0.0)), int(item.get("segment_id", 0))),
+        )
+        if not ordered:
+            return []
+
+        duration = max(float(segment.get("end", 0.0) or 0.0) for segment in ordered)
+        if duration <= 0:
+            return []
+
+        if self.qwen_review_window_mode == "fixed":
+            window_seconds = max(1.0, float(self.qwen_single_window_seconds or 10.0))
+            ranges = []
+            current = 0.0
+            while current < duration - 0.001:
+                window_end = min(duration, current + window_seconds)
+                ranges.append((round(current, 2), round(window_end, 2), []))
+                current = window_end
+            source_type = "review_window"
+            mode = "fixed"
+        else:
+            focus_ranges = self._build_focus_window_ranges(ordered, duration)
+            coverage_ranges = self._build_coverage_window_ranges(ordered, duration, focus_ranges)
+            focus_lookup = {
+                (round(start, 2), round(end, 2))
+                for start, end in focus_ranges
+            }
+            combined = sorted(coverage_ranges + focus_ranges)
+            ranges = [
+                (
+                    start,
+                    end,
+                    ["risk_focus"] if (round(start, 2), round(end, 2)) in focus_lookup else ["coverage"],
+                )
+                for start, end in combined
+            ]
+            source_type = "adaptive_review_window"
+            mode = "adaptive"
+
+        windows = []
+        for window_id, (window_start, window_end, focus_reasons) in enumerate(ranges, start=1):
+            source_segments = self._segments_for_window(ordered, window_start, window_end)
+            if not source_segments:
+                continue
+            windows.append(
+                self._build_review_window_from_sources(
+                    window_id,
+                    window_start,
+                    window_end,
+                    source_segments,
+                    source_type,
+                    mode,
+                    focus_reasons=focus_reasons,
+                )
+            )
+
+        print(
+            f"Built {len(windows)} Qwen {mode} review windows from {len(ordered)} visual scene segments."
+        )
+        return windows
 
     def align_sound_with_segments(self, aligned_segments, sound_events):
         """
@@ -2674,6 +3205,11 @@ class VideoModerationService:
         metadata_summary = segment.get('metadata_summary') or "无"
         sound_summary = segment.get('sound_summary') or "背景声音：无特殊声音"
         source_type = segment.get('source_type') or "unknown"
+        review_scope = (
+            f"review_window_id={segment.get('review_window_id') or segment.get('segment_id')}"
+            if source_type in {"review_window", "adaptive_review_window"}
+            else f"segment_id={segment.get('segment_id')}"
+        )
         frame_count = len(segment.get('segment_frames') or [])
         text_policy_summary = segment.get("text_policy_summary") or "无文本规则命中"
         if segment.get("long_text_context"):
@@ -2714,7 +3250,7 @@ class VideoModerationService:
 
         【画面信息】
         （见附图中的视频帧，展示该时间段内的关键画面）
-        source_type={source_type}; representative_frame_count={frame_count}
+        {review_scope}; source_type={source_type}; representative_frame_count={frame_count}
 
         【文字内容】
         "{text_content}"
@@ -2804,8 +3340,82 @@ class VideoModerationService:
         """
             
         return prompt
-    
-    def audit_with_qwen(self, segment):
+
+    def _reset_qwen_audit_stats(self):
+        self.qwen_audit_stats = {
+            "audit_mode": self.qwen_audit_mode,
+            "review_window_mode": self.qwen_review_window_mode,
+            "single_window_seconds": self.qwen_single_window_seconds,
+            "adaptive_min_window_seconds": self.qwen_adaptive_min_window_seconds,
+            "adaptive_max_window_seconds": self.qwen_adaptive_max_window_seconds,
+            "adaptive_target_window_seconds": self.qwen_adaptive_target_window_seconds,
+            "risk_focus_window_seconds": self.qwen_risk_focus_window_seconds,
+            "single_max_frames_per_window": self.qwen_single_max_frames_per_window,
+            "call_count": 0,
+            "single_count": 0,
+            "audit_incomplete_no_visual_count": 0,
+        }
+
+    def _record_qwen_call(self, kind):
+        if not isinstance(getattr(self, "qwen_audit_stats", None), dict):
+            self._reset_qwen_audit_stats()
+        self.qwen_audit_stats["call_count"] = int(self.qwen_audit_stats.get("call_count", 0)) + 1
+        self.qwen_audit_stats["single_count"] = int(self.qwen_audit_stats.get("single_count", 0)) + 1
+
+    def _call_audit_with_qwen(self, segment, audit_source="single_qwen"):
+        audit_callable = self.audit_with_qwen
+        supports_audit_source = True
+        try:
+            params = inspect.signature(audit_callable).parameters
+            supports_audit_source = (
+                "audit_source" in params
+                or any(param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values())
+            )
+        except (TypeError, ValueError):
+            supports_audit_source = True
+
+        if supports_audit_source:
+            return audit_callable(segment, audit_source=audit_source)
+        return audit_callable(segment)
+
+    def _build_qwen_incomplete_result(self, segment, reason, audit_source="audit_incomplete_no_visual"):
+        if audit_source == "audit_incomplete_no_visual" and isinstance(getattr(self, "qwen_audit_stats", None), dict):
+            self.qwen_audit_stats["audit_incomplete_no_visual_count"] = int(
+                self.qwen_audit_stats.get("audit_incomplete_no_visual_count", 0)
+            ) + 1
+        return {
+            "is_risky": True,
+            "risk_type": "audit_incomplete",
+            "risk_score": 0.5,
+            "reason": reason,
+            "segment_id": segment.get("segment_id"),
+            "audit_incomplete": True,
+            "qwen_audit_source": audit_source,
+        }
+
+    def _finalize_segment_audit_result(self, segment, qwen_result, audit_source=None):
+        qwen_result = dict(qwen_result or {})
+        source = audit_source or qwen_result.get("qwen_audit_source") or segment.get("qwen_audit_source") or "single_qwen"
+        qwen_result["qwen_audit_source"] = source
+        if qwen_result.get("model_input_trace_file"):
+            segment["model_input_trace_file"] = qwen_result.get("model_input_trace_file")
+        elif segment.get("model_input_trace_file"):
+            qwen_result["model_input_trace_file"] = segment.get("model_input_trace_file")
+        segment["qwen_audit_source"] = source
+        qwen_result = self._normalize_audit_result(qwen_result, segment)
+        qwen_result["qwen_audit_source"] = source
+        segment["qwen_result"] = dict(qwen_result)
+
+        result = self._normalize_audit_result(dict(qwen_result), segment)
+        result = self._apply_text_policy_fusion(segment, result)
+        result = self._apply_audio_risk_fusion(segment, result)
+        result = self._apply_business_calibration(segment, result)
+        result["qwen_audit_source"] = source
+        self.update_model_input_trace_final_result(segment, result)
+        segment["audit_result"] = result
+        return result
+
+    def audit_with_qwen(self, segment, audit_source="single_qwen"):
         """
         使用Qwen模型审核单个段落
         
@@ -2829,14 +3439,11 @@ class VideoModerationService:
             "temperature": 0.1,
         }
         if not image_path or not Path(image_path).exists():
-            result = {
-                "is_risky": True,
-                "risk_type": "audit_incomplete",
-                "risk_score": 0.5,
-                "reason": "No usable visual frame was available; fallback to manual review.",
-                "segment_id": segment.get('segment_id'),
-                "audit_incomplete": True,
-            }
+            result = self._build_qwen_incomplete_result(
+                segment,
+                "No usable visual frame was available; fallback to manual review.",
+                "audit_incomplete_no_visual",
+            )
             trace_file = self._write_model_input_trace(
                 segment,
                 prompt=prompt,
@@ -2853,14 +3460,11 @@ class VideoModerationService:
 
         if self.qwen_model is None or self.qwen_processor is None:
             print("Qwen model is not loaded")
-            result = {
-                "is_risky": True,
-                "risk_type": "audit_incomplete",
-                "risk_score": 0.5,
-                "reason": "Qwen model is not loaded; fallback to manual review.",
-                "segment_id": segment.get('segment_id'),
-                "audit_incomplete": True,
-            }
+            result = self._build_qwen_incomplete_result(
+                segment,
+                "Qwen model is not loaded; fallback to manual review.",
+                audit_source,
+            )
             trace_file = self._write_model_input_trace(
                 segment,
                 prompt=prompt,
@@ -2928,6 +3532,7 @@ class VideoModerationService:
             inputs = {k: v.to(qwen_device) if hasattr(v, "to") else v for k, v in inputs.items()}
             
             # 6. 生成
+            self._record_qwen_call("single")
             with torch.no_grad():
                 generated_ids = self.qwen_model.generate(
                     **inputs,
@@ -2963,6 +3568,7 @@ class VideoModerationService:
                         "risk_score": 0.5,
                         "reason": f"Qwen JSON parse failed: {response[:200]}",
                         "audit_incomplete": True,
+                        "qwen_audit_source": audit_source,
                     }
                     parsed_result = result
             else:
@@ -2972,11 +3578,14 @@ class VideoModerationService:
                     "risk_score": 0.5,
                     "reason": f"Qwen JSON parse failed: {response[:200]}",
                     "audit_incomplete": True,
+                    "qwen_audit_source": audit_source,
                 }
                 parsed_result = result
             
             # 9. 添加元数据
             result = self._normalize_audit_result(result, segment)
+            result = self._normalize_audit_result(result, segment)
+            result["qwen_audit_source"] = audit_source
             trace_file = self._write_model_input_trace(
                 segment,
                 prompt=prompt,
@@ -3009,6 +3618,7 @@ class VideoModerationService:
                 "reason": f"Qwen audit error: {str(e)}",
                 "segment_id": segment.get('segment_id'),
                 "audit_incomplete": True,
+                "qwen_audit_source": audit_source,
             }
             trace_file = self._write_model_input_trace(
                 segment,
@@ -3057,46 +3667,278 @@ class VideoModerationService:
         return result
 
     def batch_audit(self, aligned_segments, max_segments=None):
-        """
-        批量审核所有段落
-        
-        Args:
-            aligned_segments: 对齐后的段落列表（已包含声音事件）
-            max_segments: 最大审核段落数（用于测试）
-            
-        Returns:
-            list: 所有段落的审核结果
-        """
         print("\n" + "="*60)
-        print("开始多模态审核...")
+        print("Starting multimodal moderation...")
         print("="*60)
-        
+
         audit_results = []
-        
-        # 限制数量用于测试
-        segments_to_audit = aligned_segments
+        segments_to_audit = list(aligned_segments or [])
         if max_segments:
-            segments_to_audit = aligned_segments[:max_segments]
-            print(f"⚠️ 测试模式：只审核前 {max_segments} 个段落")
-        
-        for i, segment in enumerate(segments_to_audit):
-            print(f"\n--- 审核进度 {i+1}/{len(segments_to_audit)} ---")
-            
-            # 审核当前段落
-            result = self.audit_with_qwen(segment)
-            result = self._normalize_audit_result(result, segment)
-            result = self._apply_text_policy_fusion(segment, result)
-            result = self._apply_audio_risk_fusion(segment, result)
-            result = self._apply_business_calibration(segment, result)
-            self.update_model_input_trace_final_result(segment, result)
-            audit_results.append(result)
-            
-            # 将结果添加到segment中
-            segment['audit_result'] = result
-        
+            segments_to_audit = segments_to_audit[:max_segments]
+            print(f"Test mode: auditing first {max_segments} segments only")
+
+        self._reset_qwen_audit_stats()
+        for index, segment in enumerate(segments_to_audit, start=1):
+            print(f"\n--- Qwen single audit {index}/{len(segments_to_audit)} ---")
+            qwen_result = self._call_audit_with_qwen(segment, audit_source="single_qwen")
+            audit_results.append(self._finalize_segment_audit_result(segment, qwen_result, "single_qwen"))
+
         return audit_results
 
-    def generate_audit_report(self, aligned_segments, video_path, coverage_issues=None, modalities_checked=None):
+    def _segment_trace_file(self, segment):
+        return str(
+            (segment.get("audit_result") or {}).get("model_input_trace_file")
+            or segment.get("model_input_trace_file")
+            or ""
+        )
+
+    def _read_segment_trace_payload(self, segment):
+        trace_file = self._segment_trace_file(segment)
+        if not trace_file:
+            return {}
+        try:
+            trace_path = Path(trace_file)
+            if not trace_path.exists():
+                return {}
+            with open(trace_path, "r", encoding="utf-8") as trace_handle:
+                payload = json.load(trace_handle)
+            return payload if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
+
+    @classmethod
+    def _report_preview(cls, value, limit=180):
+        return cls._truncate_text(value, limit=limit)
+
+    @classmethod
+    def _round_report_number(cls, value, digits=2):
+        number = cls._float_or_none(value)
+        if number is None:
+            return None
+        return round(number, digits)
+
+    @classmethod
+    def _summarize_sound_events_for_report(cls, events, limit=5):
+        summary = []
+        for event in list(events or [])[:limit]:
+            summary.append({
+                "time": cls._round_report_number(event.get("time")),
+                "class": event.get("class"),
+                "confidence": cls._round_report_number(event.get("confidence")),
+                "is_risk": bool(event.get("is_risk")),
+                "risk_category": event.get("risk_category"),
+            })
+        return summary
+
+    @classmethod
+    def _summarize_policy_matches_for_report(cls, matches, source=None, limit=5):
+        filtered = []
+        for match in matches or []:
+            if source is not None and match.get("source") != source:
+                continue
+            filtered.append(match)
+        return {
+            "hit_count": len(filtered),
+            "summary": cls._report_preview(cls._format_text_policy_summary(filtered), 180) if filtered else "",
+            "top_matches": [
+                {
+                    "risk_type": match.get("risk_type"),
+                    "risk_subtype": match.get("risk_subtype"),
+                    "severity": match.get("severity"),
+                    "policy_action": match.get("policy_action"),
+                    "keyword": match.get("keyword"),
+                    "source": match.get("source"),
+                }
+                for match in filtered[:limit]
+            ],
+        }
+
+    def _build_segment_summary(self, segment):
+        window_text = segment.get("window_text")
+        if window_text is None:
+            window_text = segment.get("text") or ""
+        segment_frames = segment.get("segment_frames") or []
+        frame_count = len(segment_frames) if segment_frames else int(segment.get("frame_count") or 0)
+        sound_events = segment.get("sound_events") or []
+        risk_sounds = segment.get("risk_sounds") or [
+            event for event in sound_events if event.get("is_risk")
+        ]
+        return {
+            "time": f"{float(segment.get('start', 0.0)):.2f}s-{float(segment.get('end', 0.0)):.2f}s",
+            "duration_seconds": self._round_report_number(segment.get("duration")),
+            "source_type": segment.get("source_type"),
+            "review_window_mode": segment.get("review_window_mode") or "",
+            "review_window_seconds": self._round_report_number(segment.get("review_window_seconds")),
+            "focus_reasons": segment.get("focus_reasons") or [],
+            "source_scene_segment_ids": segment.get("source_scene_segment_ids") or [],
+            "source_scene_segment_count": int(segment.get("source_scene_segment_count") or 0),
+            "modalities": sorted(set(segment.get("modalities") or [])),
+            "keyframe_count": frame_count,
+            "best_frame_time": self._round_report_number(segment.get("best_frame_time")),
+            "has_text": bool(str(window_text or "").strip()),
+            "text_preview": self._report_preview(window_text, 180),
+            "has_metadata": bool(str(segment.get("metadata_summary") or "").strip()),
+            "metadata_preview": self._report_preview(segment.get("metadata_summary") or "", 180),
+            "sound_event_count": len(sound_events),
+            "risk_sound_count": len(risk_sounds),
+            "has_risk_sound": bool(segment.get("has_risk_sound")),
+            "sound_summary": self._report_preview(segment.get("sound_summary") or "", 180),
+        }
+
+    def _build_segment_qwen_result(self, segment):
+        trace_payload = self._read_segment_trace_payload(segment)
+        parsed_result = trace_payload.get("parsed_result")
+        qwen_result = segment.get("qwen_result") or {}
+        audit_result = segment.get("audit_result") or {}
+        source = segment.get("qwen_audit_source") or ""
+        result = qwen_result
+        if not result and isinstance(parsed_result, dict) and parsed_result:
+            result = parsed_result
+            source = source or "trace_parsed_result"
+        if not result:
+            result = audit_result
+            source = source or "final_audit_result"
+        if result:
+            result = self._normalize_audit_result(result, segment)
+        return {
+            "available": bool(result),
+            "source": source if result else "",
+            "audit_incomplete": bool(result.get("audit_incomplete")) if result else False,
+            "risk_type": result.get("risk_type") if result else None,
+            "risk_score": self._round_report_number(result.get("risk_score")) if result else None,
+            "severity": result.get("severity") if result else None,
+            "policy_action": result.get("policy_action") if result else None,
+            "evidence_modalities": result.get("evidence_modalities") or [] if result else [],
+            "reason_preview": self._report_preview(result.get("reason") or "", 220) if result else "",
+        }
+
+    def _build_segment_model_results(self, segment):
+        window_text = segment.get("window_text")
+        if window_text is None:
+            window_text = segment.get("text") or ""
+        sound_events = segment.get("sound_events") or []
+        risk_sounds = segment.get("risk_sounds") or [
+            event for event in sound_events if event.get("is_risk")
+        ]
+        policy_matches = segment.get("text_policy_matches") or []
+        speech_policy_matches = [
+            match for match in policy_matches
+            if match.get("source") != "metadata_text"
+        ]
+        return {
+            "qwen_visual": self._build_segment_qwen_result(segment),
+            "whisper_text": {
+                "has_text": bool(str(window_text or "").strip()),
+                "text_preview": self._report_preview(window_text, 220),
+                "source_text_time_range": segment.get("source_text_time_range") or "",
+                "long_text_context": bool(segment.get("long_text_context")),
+            },
+            "yamnet_audio": {
+                "event_count": len(sound_events),
+                "risk_event_count": len(risk_sounds),
+                "has_risk_sound": bool(segment.get("has_risk_sound")),
+                "summary": self._report_preview(segment.get("sound_summary") or "", 220),
+                "top_events": self._summarize_sound_events_for_report(sound_events, 5),
+                "risk_events": self._summarize_sound_events_for_report(risk_sounds, 5),
+            },
+            "text_policy": self._summarize_policy_matches_for_report(speech_policy_matches),
+            "metadata_policy": self._summarize_policy_matches_for_report(policy_matches, source="metadata_text"),
+        }
+
+    def _build_model_results_summary(self, aligned_segments, stage_results=None):
+        stage_results = stage_results or {}
+        scene_stage = stage_results.get("scene_detection") or {}
+        whisper_stage = stage_results.get("whisper") or {}
+        yamnet_stage = stage_results.get("yamnet") or {}
+        qwen_stage = dict(getattr(self, "qwen_audit_stats", {}) or {})
+        qwen_stage.update(stage_results.get("qwen") or {})
+
+        segments_with_text = [
+            segment for segment in aligned_segments
+            if str(segment.get("window_text") if segment.get("window_text") is not None else segment.get("text") or "").strip()
+        ]
+        all_sound_events = []
+        risk_sound_events = []
+        text_policy_segments = []
+        metadata_policy_segments = []
+        visual_segments = 0
+        for segment in aligned_segments:
+            if segment.get("best_frame_path") or segment.get("segment_frames"):
+                visual_segments += 1
+            events = segment.get("sound_events") or []
+            all_sound_events.extend(events)
+            risk_sound_events.extend(segment.get("risk_sounds") or [event for event in events if event.get("is_risk")])
+            matches = segment.get("text_policy_matches") or []
+            if any(match.get("source") != "metadata_text" for match in matches):
+                text_policy_segments.append(segment)
+            if any(match.get("source") == "metadata_text" for match in matches):
+                metadata_policy_segments.append(segment)
+
+        qwen_audited_count = sum(1 for segment in aligned_segments if segment.get("audit_result"))
+        qwen_incomplete_count = sum(
+            1
+            for segment in aligned_segments
+            if (segment.get("audit_result") or {}).get("audit_incomplete")
+            or (segment.get("audit_result") or {}).get("risk_type") == "audit_incomplete"
+        )
+
+        return {
+            "scene_detection": {
+                "enabled": scene_stage.get("enabled", None),
+                "scene_cut_count": int(scene_stage.get("scene_cut_count", 0) or 0),
+                "segment_count": len(aligned_segments),
+                "visual_segment_count": visual_segments,
+            },
+            "whisper": {
+                "checked": bool(whisper_stage.get("checked", bool(segments_with_text))),
+                "voice_segment_count": int(whisper_stage.get("voice_segment_count", 0) or 0),
+                "transcription_count": int(whisper_stage.get("transcription_count", 0) or 0),
+                "segments_with_text": len(segments_with_text),
+                "has_speech_text": bool(segments_with_text),
+            },
+            "yamnet": {
+                "checked": bool(yamnet_stage.get("checked", bool(all_sound_events))),
+                "sound_event_count": int(yamnet_stage.get("sound_event_count", len(all_sound_events)) or 0),
+                "risk_sound_count": int(yamnet_stage.get("risk_sound_count", len(risk_sound_events)) or 0),
+            },
+            "qwen": {
+                "audit_mode": qwen_stage.get("audit_mode", self.qwen_audit_mode),
+                "review_window_mode": qwen_stage.get("review_window_mode", self.qwen_review_window_mode),
+                "single_window_seconds": float(
+                    qwen_stage.get("single_window_seconds", self.qwen_single_window_seconds) or 0.0
+                ),
+                "adaptive_min_window_seconds": float(
+                    qwen_stage.get("adaptive_min_window_seconds", self.qwen_adaptive_min_window_seconds) or 0.0
+                ),
+                "adaptive_max_window_seconds": float(
+                    qwen_stage.get("adaptive_max_window_seconds", self.qwen_adaptive_max_window_seconds) or 0.0
+                ),
+                "adaptive_target_window_seconds": float(
+                    qwen_stage.get("adaptive_target_window_seconds", self.qwen_adaptive_target_window_seconds) or 0.0
+                ),
+                "risk_focus_window_seconds": float(
+                    qwen_stage.get("risk_focus_window_seconds", self.qwen_risk_focus_window_seconds) or 0.0
+                ),
+                "single_max_frames_per_window": int(
+                    qwen_stage.get("single_max_frames_per_window", self.qwen_single_max_frames_per_window) or 0
+                ),
+                "call_count": int(qwen_stage.get("call_count", 0) or 0),
+                "single_count": int(qwen_stage.get("single_count", 0) or 0),
+                "audit_incomplete_no_visual_count": int(
+                    qwen_stage.get("audit_incomplete_no_visual_count", 0) or 0
+                ),
+                "scene_segment_count": int(qwen_stage.get("scene_segment_count", 0) or 0),
+                "review_window_count": int(qwen_stage.get("review_window_count", len(aligned_segments)) or 0),
+                "audited_segment_count": int(qwen_stage.get("audited_segment_count", qwen_audited_count) or 0),
+                "incomplete_count": int(qwen_stage.get("incomplete_count", qwen_incomplete_count) or 0),
+            },
+            "text_policy": {
+                "speech_text_hit_segments": len(text_policy_segments),
+                "metadata_hit_segments": len(metadata_policy_segments),
+            },
+        }
+
+    def generate_audit_report(self, aligned_segments, video_path, coverage_issues=None, modalities_checked=None, stage_results=None):
         """
         生成完整的审核报告
         
@@ -3159,13 +4001,21 @@ class VideoModerationService:
             "modalities_checked": sorted(collected_modalities),
             "coverage_issues": coverage_issues,
             "audit_complete": audit_complete,
+            "model_results_summary": self._build_model_results_summary(aligned_segments, stage_results),
             "segments": []
         }
-        trace_files = [
-            str((seg.get("audit_result") or {}).get("model_input_trace_file") or seg.get("model_input_trace_file"))
-            for seg in aligned_segments
-            if ((seg.get("audit_result") or {}).get("model_input_trace_file") or seg.get("model_input_trace_file"))
-        ]
+        trace_files = []
+        seen_trace_files = set()
+        for trace_file in list(getattr(self, "_trace_files", []) or []):
+            trace_file = str(trace_file or "")
+            if trace_file and trace_file not in seen_trace_files:
+                trace_files.append(trace_file)
+                seen_trace_files.add(trace_file)
+        for seg in aligned_segments:
+            trace_file = str((seg.get("audit_result") or {}).get("model_input_trace_file") or seg.get("model_input_trace_file") or "")
+            if trace_file and trace_file not in seen_trace_files:
+                trace_files.append(trace_file)
+                seen_trace_files.add(trace_file)
         if trace_files:
             report["model_input_trace_dir"] = str(self._trace_session_dir) if self._trace_session_dir else str(Path(trace_files[0]).parent)
             report["model_input_trace_files"] = trace_files
@@ -3173,11 +4023,23 @@ class VideoModerationService:
         # 添加每个段落的简要结果
         for seg in aligned_segments:
             if 'audit_result' in seg:
+                trace_file = self._segment_trace_file(seg)
+                window_text = seg.get("window_text")
+                if window_text is None:
+                    window_text = seg.get("text") or ""
                 report["segments"].append({
                     "segment_id": seg['segment_id'],
                     "time": f"{seg['start']:.2f}s-{seg['end']:.2f}s",
-                    "text_preview": str(seg.get('text') or '')[:100] + "...",
+                    "text_preview": str(window_text or '')[:100] + ("..." if len(str(window_text or "")) > 100 else ""),
                     "has_risk_sound": seg.get('has_risk_sound', False),
+                    "trace_file": trace_file,
+                    "source_type": seg.get("source_type"),
+                    "review_window_mode": seg.get("review_window_mode") or "",
+                    "focus_reasons": seg.get("focus_reasons") or [],
+                    "source_scene_segment_ids": seg.get("source_scene_segment_ids") or [],
+                    "source_scene_segment_count": int(seg.get("source_scene_segment_count") or 0),
+                    "segment_summary": self._build_segment_summary(seg),
+                    "model_results": self._build_segment_model_results(seg),
                     "audit_result": seg['audit_result']
                 })
         
@@ -3246,73 +4108,3 @@ class VideoModerationService:
                     print()
         
         print("="*60)
-
-# 使用示例
-if __name__ == "__main__":
-    # 创建服务实例
-    service = VideoModerationService(model_dir="./models", device='cpu')
-    
-    # 加载所有模型
-    service.load_all_models()
-    
-    # 查看模型信息
-    info = service.get_model_info()
-    print("\n模型加载状态:")
-    for model_name, status in info.items():
-        print(f"  {model_name}: {status}")
-
-    try:
-        video_file = "打瓦.mp4"
-        audio_file = service.extract_audio_from_video(video_file)
-        
-        # 获取音频时长
-        duration = service.get_audio_duration(audio_file)
-        print(f"音频时长: {duration}秒")
-    
-    except Exception as e:
-        print(f"处理失败: {e}")
-
-    
-    # VAD检测
-    segments = service.detect_voice_segments(audio_file)
-    service.print_voice_segments(segments, duration)
-
-    # YAMNet声学检测
-    print("\n" + "="*60)
-    sound_events = service.detect_sound_events(
-        audio_file, 
-        top_k=5, 
-        confidence_threshold=0.3
-    )
-    service.print_sound_events(sound_events, top_n=15)
-
-    #whisper转写
-    print("\n" + "="*60)
-    transcriptions = service.transcribe_audio_segments(
-        audio_file, 
-        segments, 
-        language=None
-    )
-    service.print_transcriptions(transcriptions)
-
-    # 提取关键帧
-    print("\n" + "="*60)
-    frames_info = service.extract_keyframes(video_file, extraction_rate=1)
-
-    # 音画对齐
-    print("\n" + "="*60)
-    aligned_segments = service.align_text_with_frames(transcriptions, frames_info)
-    service.print_aligned_segments(aligned_segments)
-
-    # 声音事件对齐
-    print("\n" + "="*60)
-    aligned_segments = service.align_sound_with_segments(aligned_segments, sound_events)
-
-    # 多模态审核（新增）
-    audit_results = service.batch_audit(aligned_segments, max_segments=None)  # None表示审核全部
-
-    # 生成审核报告（新增）
-    report = service.generate_audit_report(aligned_segments, video_file)
-
-    # 打印总结（新增）
-    service.print_audit_summary(report)

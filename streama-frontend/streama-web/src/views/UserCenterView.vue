@@ -17,6 +17,7 @@ import { uploadImage } from '@/api/file'
 import { getSearchKeywordTop } from '@/api/video'
 import AuthDialog from '@/components/AuthDialog.vue'
 import IconFont from '@/components/IconFont.vue'
+import UserCoinBadge from '@/components/UserCoinBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -1308,6 +1309,8 @@ onBeforeUnmount(() => {
             </el-avatar>
             <span>{{ headerDisplayName }}</span>
           </button>
+
+          <UserCoinBadge />
 
           <el-button class="action-btn" type="default" @click="goCreatorCenter">
             创作者中心

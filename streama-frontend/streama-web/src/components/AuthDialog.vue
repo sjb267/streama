@@ -125,6 +125,7 @@ async function handleSubmitLogin() {
     }
     const data = await login(payload)
     authStore.setUserInfo(data)
+    await authStore.refreshUserCountInfo()
     authStore.closeAuthDialog()
     ElMessage.success('登录成功')
     loginForm.password = ''

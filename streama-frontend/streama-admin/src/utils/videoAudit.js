@@ -348,6 +348,20 @@ function getSegmentStatusMeta(isRisky, riskScore) {
   return { text: '需复核', tone: 'tone-review' }
 }
 
+function normalizeFramePathList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeText(item)).filter(Boolean)
+  }
+
+  const parsedValue = parsePossibleJson(value)
+  if (Array.isArray(parsedValue)) {
+    return parsedValue.map((item) => normalizeText(item)).filter(Boolean)
+  }
+
+  const singlePath = normalizeText(value)
+  return singlePath ? [singlePath] : []
+}
+
 function normalizeHitSegment(segment, index, fileKey) {
   if (!segment || typeof segment !== 'object') {
     return null
@@ -357,15 +371,20 @@ function normalizeHitSegment(segment, index, fileKey) {
   const endSeconds = toFiniteNumber(segment.endSeconds ?? segment.end)
   const legacyTimeText = normalizeText(segment.time)
   const seekSeconds = startSeconds ?? extractSortValueFromTimeText(legacyTimeText)
-  const bestFramePath = normalizeText(segment.bestFramePath || segment.best_frame_path)
+  const evidenceFramePaths = normalizeFramePathList(segment.evidenceFramePaths ?? segment.evidence_frame_paths)
+  const legacyBestFramePath = normalizeText(segment.bestFramePath || segment.best_frame_path)
+  const framePaths = evidenceFramePaths.length ? evidenceFramePaths : legacyBestFramePath ? [legacyBestFramePath] : []
+  const imageUrls = framePaths.map((path) => toAdminFileResourceUrl(path)).filter(Boolean)
   const riskType = normalizeSegmentRiskType(segment.riskType || segment.type || segment.risk_tag)
   const riskScore = toFiniteNumber(segment.riskScore ?? segment.score)
   const isRisky = getSegmentIsRisky(segment, riskType, riskScore)
   const statusMeta = getSegmentStatusMeta(isRisky, riskScore)
+  const segmentId = segment.segmentId ?? segment.segment_id ?? index + 1
+  const segmentKey = `${fileKey}-${segmentId}`
 
   return {
-    segmentId: segment.segmentId ?? segment.segment_id ?? index + 1,
-    segmentKey: `${fileKey}-${segment.segmentId ?? segment.segment_id ?? index + 1}`,
+    segmentId,
+    segmentKey,
     startSeconds,
     endSeconds,
     seekSeconds,
@@ -381,7 +400,13 @@ function normalizeHitSegment(segment, index, fileKey) {
     statusTone: statusMeta.tone,
     hasRiskSound: toBoolean(segment.hasRiskSound),
     sourceType: normalizeText(segment.sourceType || segment.source_type),
-    imageUrl: bestFramePath ? toAdminFileResourceUrl(bestFramePath) : '',
+    imageUrl: imageUrls[0] || '',
+    imageUrls,
+    imageItems: imageUrls.map((url, imageIndex) => ({
+      key: `${segmentKey}-image-${imageIndex}`,
+      url,
+      broken: false,
+    })),
     imageBroken: false,
     sortValue: seekSeconds ?? Number.MAX_SAFE_INTEGER,
   }

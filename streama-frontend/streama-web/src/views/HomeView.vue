@@ -6,6 +6,7 @@ import { loadAllCategory } from '@/api/category'
 import { getSearchKeywordTop, loadVideoList, searchVideo } from '@/api/video'
 import AuthDialog from '@/components/AuthDialog.vue'
 import IconFont from '@/components/IconFont.vue'
+import UserCoinBadge from '@/components/UserCoinBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const SEARCH_ORDER_TABS = Object.freeze([
@@ -793,6 +794,8 @@ onBeforeUnmount(() => {
           </el-avatar>
           <span>{{ displayNickName }}</span>
         </button>
+
+        <UserCoinBadge />
 
         <el-button class="action-btn" type="default" @click="goCreatorCenter">
           <IconFont name="icon-xiangmu" />

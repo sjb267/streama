@@ -312,8 +312,14 @@ function handlePlayerError(message) {
   playerRuntimeError.value = normalizeText(message)
 }
 
-function markSegmentImageBroken(segment) {
-  segment.imageBroken = true
+function hasVisibleSegmentImages(segment) {
+  return Boolean(segment?.imageItems?.some((image) => !image.broken))
+}
+
+function markSegmentImageBroken(image) {
+  if (image) {
+    image.broken = true
+  }
 }
 
 async function submitAudit(status) {
@@ -720,12 +726,15 @@ async function submitAudit(status) {
             <p class="segment-preview">{{ segment.textPreview || '暂无片段文本摘要。' }}</p>
             <p class="segment-extra">风险音频：{{ segment.hasRiskSound ? '有' : '无' }}</p>
 
-            <div v-if="segment.imageUrl && !segment.imageBroken" class="segment-image-wrap">
+            <div v-if="hasVisibleSegmentImages(segment)" class="segment-image-strip">
               <img
-                :src="segment.imageUrl"
+                v-for="image in segment.imageItems"
+                v-show="!image.broken"
+                :key="image.key"
+                :src="image.url"
                 alt="片段预览"
                 class="segment-image"
-                @error="markSegmentImageBroken(segment)"
+                @error="markSegmentImageBroken(image)"
               />
             </div>
           </button>
@@ -1139,19 +1148,25 @@ async function submitAudit(status) {
   line-height: 1.6;
 }
 
-.segment-image-wrap {
+.segment-image-strip {
   margin-top: 12px;
-  overflow: hidden;
-  border: 1px solid #dce5fb;
-  border-radius: 14px;
-  background: #eef3ff;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
 }
 
 .segment-image {
-  width: 100%;
+  flex: 0 0 220px;
+  width: 220px;
+  max-width: 80%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   display: block;
+  border: 1px solid #dce5fb;
+  border-radius: 14px;
+  background: #eef3ff;
 }
 
 .tag-item {

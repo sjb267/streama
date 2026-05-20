@@ -27,6 +27,8 @@
 
 首页浏览与视频搜索接口都属于公开视频读取接口，但二者在代码中的入口和查询方式并不相同。首页浏览接口主要对应 \texttt{/web/video/loadVideoList}，该接口根据父级分类编号、分类编号、页码和分页大小构造 \texttt{VideoInfoQuery} 查询对象，并通过 \texttt{VideoInfoService} 返回分页视频列表。关键词搜索接口主要对应 \texttt{/web/video/search}，该接口接收关键词、排序类型和页码参数，先将关键词写入 Redis 热词统计，再通过 \texttt{EsSearchComponent} 完成搜索并返回分页结果。
 
+首页浏览与视频搜索接口说明如表~\ref{tab:home-video-search-api} 所示。
+
 \begin{table}[!htbp]
     \centering
     \caption{首页浏览与视频搜索接口说明}
@@ -50,24 +52,63 @@
     \end{tabular}
 \end{table}
 
-首页浏览接口的核心数据结构是 \texttt{VideoInfoQuery}。该对象并不只保存分页信息，还包含父级分类编号、分类编号、视频名称、标签、简介、推荐类型、排序条件以及是否关联查询用户信息等字段。接口层通过设置这些字段，将页面传入的查询条件转换为服务层可以识别的查询对象。服务层再根据查询对象完成分页查询，并使用 \texttt{PaginationResultVO} 统一封装总记录数、当前页、总页数和视频列表数据。
+首页浏览与视频搜索处理过程如图~\ref{fig:home-video-search-flow} 所示。系统首先判断请求中是否包含关键词：若不包含关键词，则按分类和分页条件查询 MySQL 中的公开视频数据；若包含关键词，则先通过 Elasticsearch 检索视频标题和标签等字段，同时将关键词写入 Redis 搜索热词统计。两条路径取得候选视频后，都会继续过滤视频状态，并补充作者、分类和统计数据，最后封装为视频摘要列表返回给用户端。
 
 \begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.9\textwidth]{images/home_video_search_class.png}
-    \caption{首页浏览与视频搜索关键类图}
-    \label{fig:home-video-search-class}
+    \includegraphics[width=0.95\textwidth]{images/home_video_search_flow.png}
+    \caption{首页浏览与视频搜索处理流程图}
+    \label{fig:home-video-search-flow}
 \end{figure}
 
-如图~\ref{fig:home-video-search-class} 所示，\texttt{VideoController} 是首页视频查询和搜索接口的入口类。对于分类浏览请求，控制器将分类编号和分页参数封装到 \texttt{VideoInfoQuery} 中，再调用 \texttt{VideoInfoService} 查询视频分页数据；对于关键词搜索请求，控制器调用 \texttt{RedisComponent} 记录搜索词，同时通过 \texttt{EsSearchComponent} 获取检索结果。两类接口最终都返回 \texttt{PaginationResultVO}，从而使首页列表和搜索列表可以使用相同的数据返回结构。
+首页浏览与视频搜索实现过程如算法~\ref{alg:home-video-search-impl} 所示。
 
-接口返回的视频列表数据以 \texttt{VideoInfo} 为主要内容对象，通常包含视频编号、标题、封面、分类、作者、播放数、弹幕数、点赞数、收藏数和发布时间等页面展示字段。搜索热词并不参与视频结果过滤，只用于统计用户搜索行为；视频是否能够进入公开视频列表，仍然由正式视频数据和查询条件共同决定。通过这种实现方式，首页浏览、分类筛选和关键词搜索在接口层保持了较为清晰的职责划分。
+\begin{algorithm}[!htbp]
+    \caption{首页浏览与视频搜索实现算法}
+    \label{alg:home-video-search-impl}
+    \begin{algorithmic}[1]
+        \Require 分类条件 $C$，关键词 $keyword$，排序类型 $orderType$，页码 $pageNo$
+        \Ensure 公开视频分页结果 $P$
+
+        \If{$keyword$ 为空}
+            \State 构造 \texttt{VideoInfoQuery} 查询对象 $Q$
+            \State 将父级分类、子分类、页码和分页大小写入 $Q$
+            \State 设置 $Q$ 只查询公开视频，并按创建时间倒序排序
+            \State 调用 \texttt{VideoInfoService.findListByPage} 查询 MySQL，得到分页结果 $P$
+        \Else
+            \State 调用 \texttt{RedisComponent.addKeywordCount} 记录搜索热词
+            \State 根据 $keyword$、$orderType$ 和 $pageNo$ 构造 Elasticsearch 检索条件
+            \State 调用 \texttt{EsSearchComponent.search} 检索视频标题和标签字段，得到分页结果 $P$
+        \EndIf
+
+        \For{每一个视频摘要 $v \in P.list$}
+            \State 过滤不可公开访问的视频状态
+            \State 补充作者昵称、分类信息和播放量、弹幕量等统计字段
+        \EndFor
+
+        \State 将总记录数、当前页、总页数和视频摘要列表封装到 \texttt{PaginationResultVO}
+        \State \Return $P$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/home_video_search_result.png}
+    \caption{首页浏览与视频搜索结果界面}
+    \label{fig:home-video-search-result}
+\end{figure}
+
+算法~\ref{alg:home-video-search-impl} 对应的前端实现效果如图~\ref{fig:home-video-search-result} 所示。用户在首页顶部搜索框输入关键词“低头”并提交后，系统进入搜索结果展示模式，页面显示当前搜索关键词、排序条件以及匹配到的视频列表。视频卡片中展示了视频封面、标题、作者信息以及播放量、弹幕量、收藏量等摘要数据，右上方的播放量、发布时间、弹幕量和收藏量按钮对应搜索接口中的排序参数，用于控制搜索结果的展示顺序。该界面说明后端返回的分页视频数据已经被前端统一渲染为可浏览、可排序、可分页的视频搜索结果。
+
+首页浏览和关键词搜索虽然查询入口不同，但最终都使用 \texttt{PaginationResultVO} 封装分页结果，便于前端以统一方式渲染视频列表。接口返回的数据以 \texttt{VideoInfo} 为主要内容对象，通常包含视频编号、标题、封面、分类、作者、播放数、弹幕数、点赞数、收藏数和发布时间等展示字段。系统只允许正式发布且资源可访问的视频进入公开视频列表，未发布、待审核、转码中或资源异常的视频不会被返回。搜索热词只用于 Redis 统计用户搜索行为，不直接参与公开视频过滤。
 
 \subsection{视频播放页实现}
 
 视频播放页实现主要围绕视频详情、分 P 文件、用户行为状态和播放资源读取几个接口展开。与用户端整体接口时序不同，本节不再重复说明网关转发和服务协作过程，而是从播放页所依赖的接口和关键数据对象角度说明其实现方式。
 
 视频播放页进入时，首先根据视频编号调用 \texttt{/web/video/getVideoInfo} 接口读取视频主信息。该接口内部通过 \texttt{VideoInfoService.getVideoInfoByVideoId} 查询正式视频数据；如果视频记录不存在，则直接抛出业务异常。若当前请求中能够解析出登录用户信息，系统还会构造 \texttt{UserActionQuery}，并通过互动服务查询当前用户对该视频的点赞、收藏和投币状态，最后将视频主信息和用户行为状态封装为 \texttt{VideoInfoResultVO} 返回。
+
+视频播放页相关接口说明如表~\ref{tab:video-play-api} 所示。
 
 \begin{table}[!htbp]
     \centering
@@ -167,6 +208,8 @@
 
 视频分片上传由资源服务处理，主要涉及 \texttt{/preUploadVideo}、\texttt{/uploadVideo} 和 \texttt{/deleteUploadVideo} 三个接口。上传前，系统根据文件名和分片数量创建上传任务，并在 Redis 中保存 \texttt{UploadFileDto}；上传过程中，每个分片请求都携带 \texttt{uploadId} 和 \texttt{chunkIndex}，资源服务根据当前用户编号和 \texttt{uploadId} 读取 Redis 中的上传任务，再将分片写入临时目录。
 
+视频分片上传相关接口说明如表~\ref{tab:video-upload-api} 所示。
+
 \begin{table}[!htbp]
     \centering
     \caption{视频分片上传接口说明}
@@ -207,12 +250,16 @@
 
 投稿保存的关键不是简单写入一条视频记录，而是根据新增投稿和编辑投稿两种情况分别处理。若请求中没有 \texttt{videoId}，系统生成新的视频编号，将投稿主记录初始化为转码中状态，并插入 \texttt{VideoInfoPost}。若请求中存在 \texttt{videoId}，系统先查询原有投稿数据，并拒绝处于转码中或待审核状态的视频继续编辑，避免异步转码或审核结果覆盖新的投稿内容。
 
-\begin{figure}[!htbp]
+投稿信息保存与状态初始化过程如图~\ref{fig:post-video-save-flow} 所示。
+
+\begin{figure}[!h]
     \centering
     \includegraphics[width=0.95\textwidth]{images/post_video_save_flow.png}
     \caption{投稿信息保存与状态初始化流程图}
     \label{fig:post-video-save-flow}
 \end{figure}
+
+\FloatBarrier
 
 编辑投稿时，系统会读取数据库中已有的分 P 文件列表，并与本次提交的 \texttt{uploadFileList} 进行比较。若数据库中的某个分 P 文件在本次提交列表中不存在，说明该分 P 被删除，系统会删除对应的投稿态文件记录，并将文件路径写入 Redis 删除队列；若本次提交中存在 \texttt{fileId} 为空的分 P，说明它是新增文件，系统会生成新的文件编号，并将转码结果初始化为转码中。若没有新增文件，但标题、封面、标签、简介、投稿类型或分 P 文件名发生变化，则视频状态会被更新为待审核。
 
@@ -234,7 +281,7 @@
     \centering
     \caption{资源服务关键类说明}
     \label{tab:resource-service-core-class}
-    \begin{tabular}{p{0.28\textwidth} p{0.24\textwidth} p{0.4\textwidth}}
+    \begin{tabular}{p{0.28\textwidth} p{0.3\textwidth} p{0.35\textwidth}}
         \toprule
         \textbf{类名} & \textbf{核心方法} & \textbf{实现说明} \\
         \midrule
@@ -281,6 +328,44 @@
 在编码处理方面，系统会先调用 \texttt{FFmpegUtils.getVideoCodec} 读取视频编码格式。若检测到视频编码为 HEVC，则先将其转换为 H.264 编码，再继续生成 HLS 播放资源；若视频编码已经符合处理要求，则直接进入 HLS 生成步骤。这样处理主要是为了减少部分浏览器或播放环境对 HEVC 编码支持不足的问题。
 
 无论转码成功还是失败，资源服务最终都会调用 \texttt{VideoClient.transferVideoFile4Db} 将处理结果回写给主站服务。成功时回写视频时长、文件大小、资源路径和成功状态；失败时回写失败状态。主站服务再根据同一视频下所有分 P 文件的处理结果，决定投稿视频后续是否进入待审核状态。
+
+视频文件合并与转码实现过程如算法~\ref{alg:video-merge-transcode-impl} 所示。
+
+\begin{algorithm}[!htbp]
+    \caption{视频文件合并与转码实现算法}
+    \label{alg:video-merge-transcode-impl}
+    \begin{algorithmic}[1]
+        \Require Redis 转码队列任务 $T$
+        \Ensure 分 P 文件转码结果 $R$
+
+        \State 从 Redis 转码队列读取分 P 文件任务 $T$
+        \If{$T$ 为空}
+            \State 等待一段时间后继续轮询转码队列
+            \State \Return 空结果
+        \EndIf
+
+        \State 初始化 $R.transferResult \leftarrow \texttt{FAIL}$
+        \State 根据 $T.userId$ 和 $T.uploadId$ 读取上传任务信息 $U$
+        \State 定位临时上传目录 $tempDir$ 和正式资源目录 $targetDir$
+        \State 将 $tempDir$ 复制到 $targetDir$，并清理临时目录和 Redis 上传状态
+        \State 按照分片序号依次读取 $targetDir$ 中的分片文件
+        \State 将所有分片写入完整视频文件 $videoPath$
+        \State 使用 FFprobe 读取视频时长 $duration$，并统计文件大小 $fileSize$
+        \State 设置 $R.duration$、$R.fileSize$ 和 $R.filePath$
+        \State 调用 \texttt{FFmpegUtils.getVideoCodec} 获取视频编码 $codec$
+        \If{$codec$ 为 \texttt{HEVC}}
+            \State 使用 FFmpeg 将视频转换为 H.264 编码文件
+        \EndIf
+        \State 使用 FFmpeg 生成 HLS 的 \texttt{index.m3u8} 和 \texttt{ts} 切片文件
+        \State 设置 $R.transferResult \leftarrow \texttt{SUCCESS}$
+
+        \If{处理过程中出现目录缺失、分片缺失或命令执行异常}
+            \State 保持 $R.transferResult \leftarrow \texttt{FAIL}$
+        \EndIf
+        \State 调用 \texttt{VideoClient.transferVideoFile4Db} 回写 $R$
+        \State \Return $R$
+    \end{algorithmic}
+\end{algorithm}
 
 \subsection{HLS 播放资源生成与访问实现}
 
@@ -354,6 +439,69 @@ HLS 播放资源访问过程如图~\ref{fig:hls-resource-sequence} 所示。
 评论读取接口根据视频编号构造 \texttt{VideoCommentQuery}，并支持按点赞数或评论时间排序。查询时系统可以加载一级评论及其子评论，用于播放页评论区展示。若当前用户已登录，系统还会根据用户编号和视频编号查询评论点赞、点踩记录，并将这些行为状态与评论分页结果一起返回。这样页面可以直接展示用户是否已经对某条评论执行过点赞或点踩操作。
 
 弹幕功能由 \texttt{VideoDanmuController} 和 \texttt{VideoDanmuService} 实现。发送弹幕时，系统保存视频编号、分 P 文件编号、弹幕内容、显示模式、颜色、播放时间和用户编号。与评论不同，弹幕必须绑定具体的 \texttt{fileId} 和播放时间，因此多分 P 视频可以分别加载各自的弹幕数据。服务层在保存弹幕前同样会查询视频信息，并判断视频是否关闭弹幕功能。弹幕保存成功后，系统更新视频弹幕数和搜索文档中的弹幕统计字段。
+
+评论与弹幕处理过程如算法~\ref{alg:comment-danmu-impl} 所示。
+
+\begin{algorithm}[!htbp]
+    \caption{评论与弹幕处理实现算法}
+    \label{alg:comment-danmu-impl}
+    \begin{algorithmic}[1]
+        \Require 互动请求 $request$，当前登录用户 $user$
+        \Ensure 互动处理结果 $result$
+
+        \If{$user$ 为空}
+            \State 返回未登录异常，不写入互动数据
+        \EndIf
+        \State 根据 $request.videoId$ 查询视频信息 $video$
+        \If{$video$ 不存在}
+            \State 返回业务异常
+        \EndIf
+
+        \If{$request.type$ 为评论}
+            \If{$video.interaction$ 表示评论区关闭}
+                \State 返回评论区关闭异常
+            \EndIf
+            \State 构造评论对象 $comment$，写入视频编号、用户编号、昵称、头像和评论内容
+            \If{$request.replyCommentId$ 不为空}
+                \State 查询被回复评论 $parent$
+                \State 根据 $parent$ 确定一级评论编号、被回复用户编号和被回复用户信息
+            \Else
+                \State 设置 $comment.pCommentId \leftarrow 0$
+            \EndIf
+            \State 写入评论记录
+            \If{$comment.pCommentId = 0$}
+                \State 调用主站服务增加视频评论数
+            \EndIf
+        \ElsIf{$request.type$ 为弹幕}
+            \If{$video.interaction$ 表示弹幕关闭}
+                \State 返回弹幕关闭异常
+            \EndIf
+            \State 构造弹幕对象 $danmu$
+            \State 写入视频编号、分 P 文件编号、弹幕内容、颜色、模式、播放时间和用户编号
+            \State 写入弹幕记录
+            \State 调用主站服务增加视频弹幕数
+            \State 调用搜索组件同步更新搜索文档中的弹幕统计字段
+        \EndIf
+
+        \State 返回处理成功结果 $result$
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/comment_danmu_player_result.png}
+    \caption{视频播放页弹幕展示界面}
+    \label{fig:comment-danmu-player-result}
+\end{figure}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/comment_danmu_comment_result.png}
+    \caption{视频播放页评论区展示界面}
+    \label{fig:comment-danmu-comment-result}
+\end{figure}
+
+效果如图~\ref{fig:comment-danmu-player-result} 和图~\ref{fig:comment-danmu-comment-result} 所示。图~\ref{fig:comment-danmu-player-result} 展示了视频播放页中的弹幕功能，用户可以在播放器下方输入弹幕内容，选择弹幕显示方式和颜色后发送，已发送的弹幕会按照播放时间叠加显示在视频画面上。图~\ref{fig:comment-danmu-comment-result} 展示了评论区功能，页面支持发布评论、上传评论图片、按热度或时间排序，并提供评论点赞、点踩、回复、置顶和删除等交互操作。上述界面分别对应算法中的弹幕处理分支和评论处理分支，说明系统能够将互动接口处理结果渲染为可直接操作的播放页互动功能。
 
 \subsection{点赞、收藏、投币与关注实现}
 
@@ -433,34 +581,34 @@ HLS 播放资源访问过程如图~\ref{fig:hls-resource-sequence} 所示。
     \label{tab:admin-category-api}
     \begin{tabular}{p{0.3\textwidth} p{0.26\textwidth} p{0.36\textwidth}}
         \toprule
-        \textbf{接口路径} & \textbf{主要参数} & \textbf{实现说明} \\
+        \textbf{接口路径(admin)} & \textbf{主要参数} & \textbf{实现说明} \\
         \midrule
-        \texttt{/admin/category/loadCategory}
+        \texttt{/category/loadCategory}
         & \texttt{pCategoryId}、\texttt{categoryNameFuzzy}、\texttt{pageNo}
         & 查询分类数据，并按照排序字段组织为分类树结构。 \\
 
-        \texttt{/admin/category/saveCategory}
+        \texttt{/category/saveCategory}
         & \texttt{pCategoryId}、\texttt{categoryId}、\texttt{categoryCode}、\texttt{categoryName}、\texttt{icon}
         & 新增或修改分类信息，由 \texttt{CategoryInfoService.saveCategory} 完成保存。 \\
 
-        \texttt{/admin/category/delCategory}
+        \texttt{/category/delCategory}
         & \texttt{categoryId}
         & 根据分类编号删除分类，由服务层完成删除前的业务校验。 \\
 
-        \texttt{/admin/category/changeSort}
+        \texttt{/category/changeSort}
         & \texttt{pCategoryId}、\texttt{categoryIds}
         & 按照传入的分类编号顺序调整同级分类排序。 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-内容管理主要指后台对投稿视频列表的查询。后台接口 \texttt{/admin/videoInfo/loadVideoList} 接收 \texttt{VideoInfoPostQuery} 查询对象，可以按照视频编号、标题、用户编号、分类、投稿状态、投稿类型和时间范围等条件查询投稿态视频数据。该接口本身不直接处理审核逻辑，而是用于为后台列表页提供分页数据。
+内容管理主要指后台对投稿视频列表的查询。后台接口 \texttt{\seqsplit{WebClient.loadVideoList}} 接收 \texttt{VideoInfoPostQuery} 查询对象，可以按照视频编号、标题、用户编号、分类、投稿状态、投稿类型和时间范围等条件查询投稿态视频数据。该接口本身不直接处理审核逻辑，而是用于为后台列表页提供分页数据。
 
-从实现角度看，分类管理是后台服务本地业务，内容管理则通过 \texttt{WebClient.loadVideoList} 调用主站服务查询投稿数据。这样分类维护和视频投稿查询在代码中保持了比较清晰的边界，也避免后台管理模块重复实现视频投稿查询逻辑。
+从实现角度看，分类管理是后台服务本地业务，内容管理则通过 \texttt{\seqsplit{WebClient.loadVideoList}} 调用主站服务查询投稿数据。这样分类维护和视频投稿查询在代码中保持了比较清晰的边界，也避免后台管理模块重复实现视频投稿查询逻辑。
 
 \subsection{视频审核管理实现}
 
-视频审核管理是后台管理功能中相对重要的部分。后台视频审核入口位于 \texttt{VideoInfoController}，该控制器并不直接操作投稿视频表，而是通过 \texttt{WebClient} 调用主站业务服务完成审核相关处理。后台页面加载审核列表时，调用 \texttt{/admin/videoInfo/loadVideoList} 查询投稿态视频；查看某个视频详情时，调用 \texttt{/admin/videoInfo/getVideoPostDetail} 获取投稿主信息和分 P 文件信息；查看 AI 审核结果时，则分别调用 \texttt{/admin/videoInfo/getAiAuditSummary} 和 \texttt{/admin/videoInfo/getAiAuditItems} 获取视频级审核摘要和分 P 级审核明细。
+视频审核管理是后台管理功能中相对重要的部分。后台视频审核入口位于 \texttt{\seqsplit{VideoInfoController}}，该控制器并不直接操作投稿视频表，而是通过 \texttt{\seqsplit{WebClient}} 调用主站业务服务完成审核相关处理。后台页面加载审核列表时，调用 \texttt{\seqsplit{WebClient.loadVideoList}} 查询投稿态视频；查看某个视频详情时，调用 \texttt{\seqsplit{WebClient.getVideoPostDetail}} 获取投稿主信息和分 P 文件信息；查看 AI 审核结果时，则分别调用 \texttt{\seqsplit{WebClient.getAiAuditSummary}} 和 \texttt{\seqsplit{WebClient.getAiAuditItems}} 获取视频级审核摘要和分 P 级审核明细。
 
 视频审核相关接口如表~\ref{tab:admin-video-audit-api} 所示。
 
@@ -470,25 +618,25 @@ HLS 播放资源访问过程如图~\ref{fig:hls-resource-sequence} 所示。
     \label{tab:admin-video-audit-api}
     \begin{tabular}{p{0.34\textwidth} p{0.22\textwidth} p{0.36\textwidth}}
         \toprule
-        \textbf{接口路径} & \textbf{主要参数} & \textbf{实现说明} \\
+        \textbf{接口路径(admin)} & \textbf{主要参数} & \textbf{实现说明} \\
         \midrule
-        \texttt{/admin/videoInfo/loadVideoList}
+        \texttt{/videoInfo/loadVideoList}
         & \texttt{status}、\texttt{videoNameFuzzy}、\texttt{userId}、\texttt{pageNo}
         & 查询投稿态视频分页列表，用于后台审核列表展示。 \\
 
-        \texttt{/admin/videoInfo/getVideoPostDetail}
+        \texttt{/videoInfo/getVideoPostDetail}
         & \texttt{videoId}
         & 读取投稿视频主信息和分 P 文件信息，用于审核详情页展示。 \\
 
-        \texttt{/admin/videoInfo/getAiAuditSummary}
+        \texttt{/videoInfo/getAiAuditSummary}
         & \texttt{videoId}
         & 查询视频级 AI 审核任务摘要，包括审核建议、风险等级和任务状态等信息。 \\
 
-        \texttt{/admin/videoInfo/getAiAuditItems}
+        \texttt{/videoInfo/getAiAuditItems}
         & \texttt{videoId}
         & 查询分 P 级 AI 审核明细，用于展示风险片段和审核依据。 \\
 
-        \texttt{/admin/videoInfo/auditVideo}
+        \texttt{/videoInfo/auditVideo}
         & \texttt{videoId}、\texttt{status}、\texttt{reason}
         & 提交人工审核结果。审核通过时进入发布同步逻辑，审核不通过时保存驳回原因。 \\
         \bottomrule
@@ -566,9 +714,9 @@ AI 服务完成审核后，会将视频级结果和分 P 级结果返回主站�
 
 审核结果更新时需要注意任务状态的一致性。任务创建后通常处于待处理状态，消息投递或 AI 服务开始处理后进入处理中状态，AI 结果成功回写后更新为已完成状态。如果消息投递失败、AI 服务异常或结果解析失败，则任务应更新为失败状态，并记录错误信息。对于没有有效待审文件的情况，任务可以被标记为取消状态。
 
-命中片段是 AI 审核结果中比较重要的部分。它通常以 JSON 形式保存到 \texttt{hitSegmentsJson} 字段中，用于记录风险出现的时间范围、风险类型、文本摘要、声音事件和模型判断理由等内容。后台审核详情页可以根据这些数据展示分 P 级风险证据，帮助管理员快速定位问题片段。
+命中片段是 AI 审核结果中比较重要的部分。它通常以 JSON 形式保存到 \texttt{\seqsplit{hitSegmentsJson}} 字段中，用于记录风险出现的时间范围、风险类型、文本摘要、声音事件和模型判断理由等内容。后台审核详情页可以根据这些数据展示分 P 级风险证据，帮助管理员快速定位问题片段。
 
-由于 AI 审核结果只承担初审提示作用，因此 AI 结果回写不会直接把 \texttt{video\_info\_post.status} 修改为审核通过或审核不通过。投稿视频仍然保持待审核状态，等待管理员在后台执行人工审核操作。这样可以避免模型误判直接影响视频是否公开发布。
+由于 AI 审核结果只承担初审提示作用，因此 AI 结果回写不会直接把 \texttt{\seqsplit{video\_info\_post.status}} 修改为审核通过或审核不通过。投稿视频仍然保持待审核状态，等待管理员在后台执行人工审核操作。这样可以避免模型误判直接影响视频是否公开发布。
 
 \subsection{AI 初审与人工终审协同实现}
 
@@ -600,6 +748,8 @@ AI 审核服务可以按照处理职责划分为审核编排层、模型能力�
 
 \texttt{ModerationEngine} 属于审核流程入口和运行状态管理，\texttt{VideoModerationService} 为具体的视频分析和模型调用。前者负责加载服务对象、控制同一时间的审核执行、维护模型健康状态和处理运行异常；后者负责视频音频流检测、音频提取、语音识别、声音事件识别、关键帧抽取、片段构建和模型审核。通过这种划分，系统能够将流程控制和模型能力调用分离，降低单个类的复杂度。
 
+AI 审核服务结构如图~\ref{fig:ai-service-class} 所示。
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.95\textwidth]{images/ai_service_class.png}
@@ -618,6 +768,8 @@ AI 审核服务启动时，需要先完成模型加载和运行环境检查。�
 音频提取完成后，系统会形成两条分析路径。第一条路径是语音文本分析，系统先通过 VAD 检测音频中的有效语音片段，再调用 Whisper 将这些语音片段转写为文本。该路径主要用于判断视频中“说了什么”。第二条路径是声音事件分析，系统通过 YAMNet 对音频进行环境声音和异常声音识别。该路径主要用于判断视频中“出现了什么声音”，例如枪声、爆炸声、尖叫声、警报声等。
 
 视频预处理阶段还需要提取关键帧。关键帧是后续 Qwen 多模态审核的重要视觉输入。系统不适合将视频中的所有帧都送入模型，因为这样会造成较大的计算开销，也会产生大量重复画面。因此，系统按照一定的抽帧频率提取代表帧，并结合风险声音时间点补充附近画面。通过这种方式，可以在控制模型调用次数的同时，提高对短时风险画面的覆盖能力。
+
+视频预处理与音频提取流程如图~\ref{fig:ai-video-preprocess-flow} 所示。
 
 \begin{figure}[htbp]
     \centering
@@ -733,6 +885,22 @@ AI 审核服务启动时，需要先完成模型加载和运行环境检查。�
     \end{algorithmic}
 \end{algorithm}
 
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/ai_segment_audit_result.png}
+    \caption{分 P 文件 AI 审核结果展示界面}
+    \label{fig:ai-segment-audit-result}
+\end{figure}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/ai_segment_detail_result.png}
+    \caption{风险审核片段证据展示界面}
+    \label{fig:ai-segment-detail-result}
+\end{figure}
+
+算法~\ref{alg:multi-source-segment-build} 对应的后台展示效果如图~\ref{fig:ai-segment-audit-result} 和图~\ref{fig:ai-segment-detail-result} 所示。图~\ref{fig:ai-segment-audit-result} 展示了后台审核详情页中分 P 文件的 AI 审核结果，页面在播放预览区域下方以时间轴方式标记不同审核片段，并在右侧展示 AI 状态、AI 建议、风险分数、片段数量和片段类型等信息。图~\ref{fig:ai-segment-detail-result} 展示了某个风险片段的具体证据，包括片段时间范围、风险类型、风险分数、模型判断说明、语音文本内容、风险音频标记以及代表关键帧画面。该界面说明系统已将语音文本、声音事件和关键帧按照时间窗口组织为可查看的审核片段，便于管理员根据片段证据进行人工复核。
+
 构建完成后，每个审核片段都会保存开始时间、结束时间、片段类型、代表帧路径、语音文本摘要、声音事件摘要和模型审核结果。片段类型主要包括 \texttt{text-visual}、\texttt{audio-event} 和 \texttt{visual-only} 三类。后台管理员查看审核结果时，可以根据片段类型判断风险来源，从而区分该风险是由语音内容触发、声音事件触发，还是由画面关键帧触发。
 
 整体来看，该实现方式将语音、声音和画面三类信息按照时间窗口进行组织，使 Qwen 审核输入不再只依赖某一种模态。对于有语音的视频，系统能够结合语音文本与画面进行判断；对于没有语音但存在风险声音的视频，系统能够围绕声音事件补充画面证据；对于无语音或低语音视频，系统仍然可以借助关键帧构建视觉审核片段，从而提高视频审核的覆盖范围。
@@ -742,6 +910,8 @@ AI 审核服务启动时，需要先完成模型加载和运行环境检查。�
 片段级审核完成后，系统需要将多个 \texttt{segment} 的审核结果汇总为分 P 级结果，再进一步汇总为视频级结果。分 P 级结果用于说明某个视频文件是否存在风险，视频级结果则用于后台审核列表展示和管理员最终审核参考。由于一个视频可能包含多个分 P 文件，因此系统不能只根据某一个片段结果直接决定整个视频的 AI 建议，而是需要按照层级逐步汇总。
 
 综合风险结果生成采用高风险优先原则。若任一片段被判断为高风险，则该分 P 的 AI 建议应倾向于驳回；若不存在明确高风险，但存在中风险、模型判断不确定、缺少视觉证据或声音事件无法确认等情况，则建议人工复核；只有所有片段均未发现明显风险时，分 P 级结果才建议通过。该策略能够避免高风险片段被大量低风险片段稀释。
+
+综合风险结果生成流程如图~\ref{fig:ai-risk-result-flow} 所示。
 
 \begin{figure}[htbp]
     \centering

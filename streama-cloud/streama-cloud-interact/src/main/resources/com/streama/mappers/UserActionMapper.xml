@@ -94,7 +94,7 @@
 		</if>
 		FROM user_action u
 		<if test="query.queryVideoInfo != null">
-			left join video_info v on u.video_id = v.video_id
+			inner join video_info v on u.video_id = v.video_id
 		</if>
 		<include refid="query_condition" />
 		<if test = "query.orderBy != null">
@@ -107,7 +107,11 @@
 
 	<!--查询数量-->
 	<select id="selectCount" resultType="java.lang.Integer">
-		SELECT count(1) FROM user_action u <include refid="query_condition" />
+		SELECT count(1) FROM user_action u
+		<if test="query.queryVideoInfo != null">
+			INNER JOIN video_info v ON u.video_id = v.video_id
+		</if>
+		<include refid="query_condition" />
 	</select>
 
 	<!--插入（匹配有值的字段）-->

@@ -63,6 +63,22 @@ moderation:
   qwen_device: cuda
   preload_models: true
   extraction_rate: 1
+  segment_axis: visual
+  scene_window_seconds: 10.0
+  scene_min_segment_seconds: 2.0
+  scene_detection_enabled: true
+  scene_sample_fps: 4.0
+  scene_min_gap_seconds: 1.0
+  scene_adaptive_multiplier: 2.5
+  scene_min_score: 25.0
+  qwen_audit_mode: single
+  qwen_review_window_mode: adaptive
+  qwen_single_window_seconds: 10.0
+  qwen_adaptive_min_window_seconds: 5.0
+  qwen_adaptive_max_window_seconds: 30.0
+  qwen_adaptive_target_window_seconds: 20.0
+  qwen_risk_focus_window_seconds: 8.0
+  qwen_single_max_frames_per_window: 12
   sound_top_k: 5
   sound_confidence_threshold: 0.3
   language: zh

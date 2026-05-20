@@ -10,6 +10,7 @@ import { doUserAction, getSearchKeywordTop, getVideoInfo, loadVideoList, loadVid
 import { loadDanmu, postDanmu } from '@/api/danmu'
 import AuthDialog from '@/components/AuthDialog.vue'
 import IconFont from '@/components/IconFont.vue'
+import UserCoinBadge from '@/components/UserCoinBadge.vue'
 import VideoCommentSection from '@/components/VideoCommentSection.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -1481,7 +1482,10 @@ async function handleVideoAction(actionType) {
       actionCount: 1,
       commentId: 0,
     })
-    await refreshVideoInfo()
+    await Promise.all([
+      refreshVideoInfo(),
+      targetActionType === 4 ? authStore.refreshUserCountInfo({ force: true }) : Promise.resolve(),
+    ])
   } catch (_error) {
     // Error message handled by request interceptor.
   } finally {
@@ -1709,6 +1713,8 @@ onBeforeUnmount(() => {
           </el-avatar>
           <span>{{ displayNickName }}</span>
         </button>
+
+        <UserCoinBadge />
 
         <el-button class="action-btn" type="default" @click="goCreatorCenter">
           <IconFont name="icon-xiangmu" />
@@ -2674,4 +2680,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-

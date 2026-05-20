@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import AuthDialog from '@/components/AuthDialog.vue'
 import IconFont from '@/components/IconFont.vue'
+import UserCoinBadge from '@/components/UserCoinBadge.vue'
 import { loadAllCategory } from '@/api/category'
 import { deleteUploadVideo, preUploadVideo, uploadImage, uploadVideo } from '@/api/file'
 import { getSystemSetting } from '@/api/sysSetting'
@@ -1667,6 +1668,8 @@ async function submitPost() {
         </div>
 
         <button class="home-trigger" type="button" @click="goHome">返回首页</button>
+
+        <UserCoinBadge block />
 
         <div class="sidebar-nav" role="tablist" aria-label="创建中心导航">
           <button

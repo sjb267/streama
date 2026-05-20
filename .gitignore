@@ -11,6 +11,7 @@ skill.md
 中期报告.md
 
 # 忽略 ai-service 中的特定内容
+ai-service/audit_results/
 ai-service/ai-service-env/
 ai-service/models/
 ai-service/temp/
