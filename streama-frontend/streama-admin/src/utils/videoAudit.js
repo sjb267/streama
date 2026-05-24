@@ -362,6 +362,14 @@ function normalizeFramePathList(value) {
   return singlePath ? [singlePath] : []
 }
 
+function truncateText(value, maxLength = 120) {
+  const text = normalizeText(value)
+  if (!text || text.length <= maxLength) {
+    return text
+  }
+  return `${text.slice(0, maxLength).trim()}...`
+}
+
 function normalizeHitSegment(segment, index, fileKey) {
   if (!segment || typeof segment !== 'object') {
     return null
@@ -381,6 +389,9 @@ function normalizeHitSegment(segment, index, fileKey) {
   const statusMeta = getSegmentStatusMeta(isRisky, riskScore)
   const segmentId = segment.segmentId ?? segment.segment_id ?? index + 1
   const segmentKey = `${fileKey}-${segmentId}`
+  const textPreview = normalizeText(segment.textPreview || segment.text || segment.preview || segment.ocrText)
+  const reason = normalizeText(segment.reason || segment.description)
+  const hasRiskSound = toBoolean(segment.hasRiskSound)
 
   return {
     segmentId,
@@ -389,16 +400,20 @@ function normalizeHitSegment(segment, index, fileKey) {
     endSeconds,
     seekSeconds,
     timeText: buildSegmentTimeText(startSeconds, endSeconds, legacyTimeText),
-    textPreview: normalizeText(segment.textPreview || segment.text || segment.preview || segment.ocrText),
+    textPreview,
+    hasTextPreview: Boolean(textPreview),
     riskType,
     riskTypeText: getSegmentRiskTypeText(riskType),
     riskScore,
     riskScoreText: formatScore(segment.riskScore ?? segment.score),
-    reason: normalizeText(segment.reason || segment.description),
+    reason,
+    reasonPreview: truncateText(reason, 140),
+    hasReason: Boolean(reason),
     isRisky,
     statusText: statusMeta.text,
     statusTone: statusMeta.tone,
-    hasRiskSound: toBoolean(segment.hasRiskSound),
+    hasRiskSound,
+    showAudioRiskTag: hasRiskSound,
     sourceType: normalizeText(segment.sourceType || segment.source_type),
     imageUrl: imageUrls[0] || '',
     imageUrls,
@@ -434,6 +449,7 @@ function normalizeAiItem(item, index) {
   const fileIndex = Number.isFinite(Number(item.fileIndex)) ? Number(item.fileIndex) : index + 1
   const fileId = normalizeText(item.fileId)
   const fileKey = fileId || `file-${fileIndex}`
+  const hitSegments = normalizeHitSegments(item.hitSegmentsJson ?? item.hitSegments, fileKey)
   return {
     fileId,
     fileIndex,
@@ -451,8 +467,10 @@ function normalizeAiItem(item, index) {
     riskScore: toFiniteNumber(item.riskScore),
     riskScoreText: formatScore(item.riskScore),
     riskTags: normalizeRiskTags(item.riskTagsJson ?? item.riskTags),
-    hitSegments: normalizeHitSegments(item.hitSegmentsJson ?? item.hitSegments, fileKey),
+    hitSegments,
+    hitSegmentCount: hitSegments.length,
     itemReason: normalizeText(item.itemReason),
+    itemReasonPreview: truncateText(item.itemReason, 180),
   }
 }
 
@@ -505,6 +523,9 @@ export function normalizeFilePosts(filePosts, aiItems = []) {
       const fileIndex = Number.isFinite(Number(filePost.fileIndex)) ? Number(filePost.fileIndex) : index + 1
       const fileId = normalizeText(filePost.fileId)
       const aiItem = itemMap.get(fileId) || null
+      const transferResult = Number(filePost.transferResult)
+      const updateType = Number(filePost.updateType)
+      const hitSegments = aiItem?.hitSegments || []
       return {
         fileId,
         uploadId: normalizeText(filePost.uploadId),
@@ -517,16 +538,20 @@ export function normalizeFilePosts(filePosts, aiItems = []) {
         transferResultMeta: getTransferResultMeta(filePost.transferResult),
         updateType: filePost.updateType ?? null,
         updateTypeMeta: getUpdateTypeMeta(filePost.updateType),
-        isUpdatedFile: Number(filePost.updateType) === 1,
+        isUpdatedFile: updateType === 1,
         aiItem,
         aiAvailabilityMeta: buildAiAvailabilityMeta(filePost, aiItem),
         aiDecisionMeta: aiItem?.decisionMeta || null,
         riskScore: aiItem?.riskScore ?? null,
         riskScoreText: aiItem?.riskScoreText || '--',
         riskTags: aiItem?.riskTags || [],
-        hitSegments: aiItem?.hitSegments || [],
+        hitSegments,
+        hitSegmentCount: hitSegments.length,
         itemReason: aiItem?.itemReason || '',
+        itemReasonPreview: aiItem?.itemReasonPreview || '',
         hasAiAudit: Boolean(aiItem),
+        hasTransferIssue: transferResult === 2,
+        hasPendingUpdateAudit: updateType === 1 && !aiItem,
       }
     })
     .filter(Boolean)

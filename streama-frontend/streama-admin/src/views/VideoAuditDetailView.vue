@@ -36,6 +36,8 @@ const aiSummary = ref(null)
 const fileList = ref([])
 const activeFileId = ref('')
 const selectedSegmentKey = ref('')
+const evidenceViewerVisible = ref(false)
+const evidenceViewerSegment = ref(null)
 
 let activeRequestToken = 0
 
@@ -58,6 +60,14 @@ const currentFile = computed(() => {
 
 const currentSegments = computed(() => currentFile.value?.hitSegments || [])
 
+const totalHitSegments = computed(() => {
+  return fileList.value.reduce((total, file) => total + (file.hitSegmentCount || 0), 0)
+})
+
+const evidenceViewerImages = computed(() => {
+  return (evidenceViewerSegment.value?.imageItems || []).filter((image) => !image.broken)
+})
+
 const displayAiSummary = computed(() => {
   return aiSummary.value || createFallbackSummary(postDetail.value)
 })
@@ -72,10 +82,7 @@ const hasAiSummaryData = computed(() => {
       summary.aiDecisionMeta ||
       summary.aiRiskMeta ||
       summary.aiSummaryText ||
-      summary.lastError ||
-      summary.completedAtText !== '--' ||
-      summary.triggerTimeText !== '--' ||
-      summary.modelText !== '--',
+      summary.lastError,
   )
 })
 
@@ -301,6 +308,10 @@ function handleSelectSegment(segment) {
   playerRef.value?.seekTo(segment.seekSeconds ?? segment.startSeconds ?? 0)
 }
 
+function handleSegmentKeydown(segment) {
+  handleSelectSegment(segment)
+}
+
 function handleMarkerSelect(segment) {
   if (!segment) {
     return
@@ -314,6 +325,18 @@ function handlePlayerError(message) {
 
 function hasVisibleSegmentImages(segment) {
   return Boolean(segment?.imageItems?.some((image) => !image.broken))
+}
+
+function getVisibleSegmentImageCount(segment) {
+  return segment?.imageItems?.filter((image) => !image.broken).length || 0
+}
+
+function openEvidenceViewer(segment) {
+  if (!hasVisibleSegmentImages(segment)) {
+    return
+  }
+  evidenceViewerSegment.value = segment
+  evidenceViewerVisible.value = true
 }
 
 function markSegmentImageBroken(image) {
@@ -427,12 +450,12 @@ async function submitAudit(status) {
       </section>
 
       <section class="summary-card">
-        <div class="section-head">
+        <div class="section-head summary-head-clean">
           <div>
-            <h3>AI 审核概览</h3>
-            <p>AI 结果仅供参考，最终是否通过仍由管理员人工判断。</p>
+            <h3>AI 审核建议</h3>
+            <p>聚焦结论、风险和证据，辅助人工快速复核。</p>
           </div>
-          <span class="section-chip">{{ displayAiSummary?.auditVersionText || '--' }}</span>
+          <span class="section-chip">{{ totalHitSegments }} 个风险片段</span>
         </div>
 
         <div class="notice-stack">
@@ -454,17 +477,6 @@ async function submitAudit(status) {
 
         <template v-if="hasAiSummaryData">
           <div class="summary-grid">
-            <article class="meta-card">
-              <span class="meta-label">任务状态</span>
-              <span
-                v-if="displayAiSummary?.taskStatusMeta"
-                class="meta-pill"
-                :class="displayAiSummary.taskStatusMeta.tone"
-              >
-                {{ displayAiSummary.taskStatusMeta.label }}
-              </span>
-              <strong v-else>--</strong>
-            </article>
             <article class="meta-card">
               <span class="meta-label">AI 建议</span>
               <span
@@ -488,23 +500,27 @@ async function submitAudit(status) {
               <strong v-else>--</strong>
             </article>
             <article class="meta-card">
-              <span class="meta-label">完成时间</span>
-              <strong>{{ displayAiSummary?.completedAtText || '--' }}</strong>
+              <span class="meta-label">风险片段</span>
+              <strong>{{ totalHitSegments }}</strong>
             </article>
             <article class="meta-card">
-              <span class="meta-label">触发时间</span>
-              <strong>{{ displayAiSummary?.triggerTimeText || '--' }}</strong>
-            </article>
-            <article class="meta-card">
-              <span class="meta-label">模型信息</span>
-              <strong>{{ displayAiSummary?.modelText || '--' }}</strong>
+              <span class="meta-label">完成状态</span>
+              <span
+                v-if="displayAiSummary?.taskStatusMeta"
+                class="meta-pill"
+                :class="displayAiSummary.taskStatusMeta.tone"
+              >
+                {{ displayAiSummary.taskStatusMeta.label }}
+              </span>
+              <strong v-else>--</strong>
             </article>
           </div>
 
-          <div class="copy-block summary-copy">
+          <details class="copy-block summary-copy technical-details">
+            <summary>AI 详情</summary>
             <span class="meta-label">AI 摘要</span>
             <p>{{ displayAiSummary?.aiSummaryText || '当前稿件暂无 AI 审核摘要。' }}</p>
-          </div>
+          </details>
 
           <el-alert
             v-if="displayAiSummary?.lastError"
@@ -531,11 +547,15 @@ async function submitAudit(status) {
               </div>
 
               <div v-if="currentFile" class="file-badges">
-                <span class="meta-pill" :class="currentFile.updateTypeMeta.tone">
+                <span
+                  v-if="currentFile.hasPendingUpdateAudit"
+                  class="meta-pill"
+                  :class="currentFile.updateTypeMeta.tone"
+                >
                   {{ currentFile.updateTypeMeta.label }}
                 </span>
                 <span
-                  v-if="currentFile.transferResultMeta"
+                  v-if="currentFile.hasTransferIssue && currentFile.transferResultMeta"
                   class="meta-pill"
                   :class="currentFile.transferResultMeta.tone"
                 >
@@ -594,11 +614,15 @@ async function submitAudit(status) {
                 <p class="file-meta">时长 {{ file.durationText }}</p>
 
                 <div class="file-badges">
-                  <span class="mini-pill" :class="file.updateTypeMeta.tone">
+                  <span
+                    v-if="file.hasPendingUpdateAudit"
+                    class="mini-pill"
+                    :class="file.updateTypeMeta.tone"
+                  >
                     {{ file.updateTypeMeta.label }}
                   </span>
                   <span
-                    v-if="file.transferResultMeta"
+                    v-if="file.hasTransferIssue && file.transferResultMeta"
                     class="mini-pill"
                     :class="file.transferResultMeta.tone"
                   >
@@ -632,7 +656,7 @@ async function submitAudit(status) {
             </div>
 
             <div class="detail-metrics">
-              <article class="meta-card">
+              <article v-if="!currentFile.hasAiAudit" class="meta-card">
                 <span class="meta-label">AI 状态</span>
                 <span class="meta-pill" :class="currentFile.aiAvailabilityMeta.tone">
                   {{ currentFile.aiAvailabilityMeta.label }}
@@ -655,7 +679,7 @@ async function submitAudit(status) {
               </article>
               <article class="meta-card">
                 <span class="meta-label">片段数量</span>
-                <strong>{{ currentFile.hitSegments.length }}</strong>
+                <strong>{{ currentFile.hitSegmentCount }}</strong>
               </article>
             </div>
 
@@ -684,35 +708,39 @@ async function submitAudit(status) {
               </span>
             </div>
 
-            <div class="copy-block">
+            <details v-if="currentFile.itemReason" class="copy-block technical-details">
+              <summary>文件级说明</summary>
               <span class="meta-label">AI 说明</span>
               <p>{{ currentFile.itemReason || '暂无文件级 AI 说明。' }}</p>
-            </div>
+            </details>
           </section>
         </aside>
       </section>
 
       <section class="panel evidence-panel">
-        <div class="section-head">
+        <div class="section-head evidence-head-clean">
           <div>
-            <h3>Qwen 审核片段</h3>
-            <p>展示 Qwen 对每段内容的判断，正常和风险结果都会保留，点击片段可跳转到对应时间点。</p>
+            <h3>风险片段</h3>
+            <p>点击片段跳转视频，横向查看多帧证据。</p>
           </div>
           <span class="section-chip">{{ currentSegments.length }} 条</span>
         </div>
 
         <div v-if="currentSegments.length > 0" class="segment-list">
-          <button
+          <div
             v-for="segment in currentSegments"
             :key="segment.segmentKey"
-            type="button"
             class="segment-card"
             :class="{
               active: selectedSegmentKey === segment.segmentKey,
               risky: segment.isRisky,
               normal: !segment.isRisky,
             }"
+            role="button"
+            tabindex="0"
             @click="handleSelectSegment(segment)"
+            @keydown.enter.prevent="handleSegmentKeydown(segment)"
+            @keydown.space.prevent="handleSegmentKeydown(segment)"
           >
             <div class="segment-head">
               <div class="segment-copy">
@@ -722,28 +750,55 @@ async function submitAudit(status) {
               <span class="mini-pill" :class="segment.statusTone">{{ segment.statusText }}</span>
             </div>
 
-            <p class="segment-reason">{{ segment.reason || '暂无 Qwen 片段原因说明。' }}</p>
-            <p class="segment-preview">{{ segment.textPreview || '暂无片段文本摘要。' }}</p>
-            <p class="segment-extra">风险音频：{{ segment.hasRiskSound ? '有' : '无' }}</p>
-
-            <div v-if="hasVisibleSegmentImages(segment)" class="segment-image-strip">
-              <img
-                v-for="image in segment.imageItems"
-                v-show="!image.broken"
-                :key="image.key"
-                :src="image.url"
-                alt="片段预览"
-                class="segment-image"
-                @error="markSegmentImageBroken(image)"
-              />
+            <p v-if="segment.hasReason" class="segment-reason segment-reason-clean" :title="segment.reason">
+              {{ segment.reasonPreview }}
+            </p>
+            <p v-if="segment.hasTextPreview" class="segment-preview segment-preview-clean">{{ segment.textPreview }}</p>
+            <div
+              v-if="segment.showAudioRiskTag || hasVisibleSegmentImages(segment)"
+              class="segment-evidence-tags"
+            >
+              <span v-if="segment.showAudioRiskTag" class="mini-pill tone-review">音频命中</span>
+              <button
+                v-if="hasVisibleSegmentImages(segment)"
+                type="button"
+                class="segment-evidence-trigger"
+                @click.stop="openEvidenceViewer(segment)"
+              >
+                证据图 {{ getVisibleSegmentImageCount(segment) }} 帧
+              </button>
             </div>
-          </button>
+          </div>
         </div>
 
         <div v-else class="empty-state">
           当前文件暂无 AI 审核片段。
         </div>
       </section>
+
+      <el-dialog
+        v-model="evidenceViewerVisible"
+        class="evidence-viewer-dialog"
+        :title="evidenceViewerSegment?.timeText ? `证据图 - ${evidenceViewerSegment.timeText}` : '证据图'"
+        width="760px"
+        append-to-body
+      >
+        <div class="evidence-viewer-body">
+          <div v-if="evidenceViewerImages.length > 0" class="evidence-viewer-strip">
+            <img
+              v-for="image in evidenceViewerImages"
+              :key="image.key"
+              :src="image.url"
+              alt="片段证据图"
+              class="evidence-viewer-image"
+              @error="markSegmentImageBroken(image)"
+            />
+          </div>
+          <div v-else class="empty-state compact-empty">
+            暂无可展示的证据图。
+          </div>
+        </div>
+      </el-dialog>
 
       <section class="audit-actions">
         <div class="action-copy">
@@ -921,6 +976,10 @@ async function submitAudit(status) {
   margin-top: 14px;
 }
 
+.summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .meta-card {
   border: 1px solid #e2e9fb;
   border-radius: 14px;
@@ -964,6 +1023,22 @@ async function submitAudit(status) {
 
 .summary-copy {
   margin-top: 14px;
+}
+
+.technical-details {
+  color: #42587f;
+}
+
+.technical-details summary {
+  cursor: pointer;
+  color: #51678f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.technical-details .meta-label {
+  display: block;
+  margin-top: 10px;
 }
 
 .notice-stack {
@@ -1087,6 +1162,7 @@ async function submitAudit(status) {
   padding: 14px;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
@@ -1094,6 +1170,11 @@ async function submitAudit(status) {
 .segment-card:hover {
   border-color: #8ea7f8;
   box-shadow: 0 10px 20px rgba(58, 92, 168, 0.12);
+}
+
+.segment-card:focus-visible {
+  outline: 3px solid rgba(93, 118, 255, 0.24);
+  outline-offset: 2px;
 }
 
 .segment-card.risky {
@@ -1140,33 +1221,81 @@ async function submitAudit(status) {
 }
 
 .segment-reason,
-.segment-preview,
-.segment-extra {
+.segment-preview {
   margin-top: 10px;
   color: #42587f;
   font-size: 13px;
   line-height: 1.6;
 }
 
-.segment-image-strip {
-  margin-top: 12px;
+.segment-reason-clean {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.segment-preview-clean {
+  color: #5b6e95;
+}
+
+.segment-evidence-tags {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.segment-evidence-trigger {
+  border: 1px solid #d6dff8;
+  border-radius: 999px;
+  background: #f5f7ff;
+  color: #42587f;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.segment-evidence-trigger:hover {
+  border-color: #8ea7f8;
+  color: #3657d8;
+}
+
+.evidence-viewer-body {
+  min-width: 0;
+}
+
+.evidence-viewer-strip {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 260px;
+  box-sizing: border-box;
   overflow-x: auto;
-  padding-bottom: 4px;
+  overflow-y: hidden;
+  padding: 10px;
+  border: 1px solid #e3eaf9;
+  border-radius: 12px;
+  background: #f7f9ff;
+  scroll-snap-type: x mandatory;
   scrollbar-width: thin;
 }
 
-.segment-image {
-  flex: 0 0 220px;
-  width: 220px;
-  max-width: 80%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
+.evidence-viewer-image {
+  flex: 0 0 420px;
+  width: 420px;
+  height: 236px;
+  object-fit: contain;
   display: block;
   border: 1px solid #dce5fb;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #eef3ff;
+  scroll-snap-align: start;
 }
 
 .tag-item {

@@ -20,6 +20,8 @@
     \label{fig:system-functional-structure}
 \end{figure}
 
+\newpage
+
 \subsection{系统参与角色划分}
 \label{subsec:system-actors}
 
@@ -48,6 +50,8 @@ AI 审核服务是系统当中的一种外部自动化审核参与者，主要�
 
 视频平台业务由上传、转码、审核、发布以及消费这多个阶段所组成。其中，上传阶段主要由内容创作者完成，用于提交视频文件、标题、简介、分类、封面这类投稿信息；转码阶段由平台系统负责，会对原始视频文件进行转换，使其变成统一格式以及可供在线播放的资源；审核阶段由 AI 审核服务和管理员共同完成，用于识别涉黄、涉暴、违禁等内容方面的风险，并且为人工复核提供辅助依据；发布阶段是在审核通过之后由系统生成正式的视频记录，然后把视频内容上架到前台页面；消费阶段则面向普通用户，用户可浏览、搜索、播放视频，并且开展评论、弹幕、点赞、收藏以及投币这类互动操作。视频转码和 AI 审核属于比较耗时的任务，因此需要借助状态流转、异步处理以及结果回写保证流程可追踪。数据密集型应用设计当中也强调过，复杂系统需要依靠状态记录以及异常恢复来提升可靠性\cite{kleppmann2017ddia}。
 
+\newpage
+
 系统的总体业务流程如图~\ref{fig:system-business-flow} 所示。
 
 \begin{figure}[!htbp]
@@ -66,7 +70,7 @@ AI 审核服务是系统当中的一种外部自动化审核参与者，主要�
   \centering
   \caption{用户端主要功能需求}
   \label{tab:user-main-functions}
-  \begin{tabular}{p{0.22\textwidth}p{0.32\textwidth}p{0.36\textwidth}}
+  \begin{tabular}{p{0.2\textwidth}p{0.35\textwidth}p{0.4\textwidth}}
     \hline
     \textbf{功能类别} & \textbf{功能点} & \textbf{需求说明} \\
     \hline

@@ -71,7 +71,7 @@
 \section{系统功能测试}
 \label{sec:system-function-test}
 
-系统功能测试主要验证用户端、创作中心和后台管理端的基础功能是否能够正常使用。由于系统中的部分功能需要多个接口配合完成，因此本节并不按照单个接口逐一测试，而是按照用户实际使用过程设计测试用例。例如，视频搜索与播放需要先查询视频列表，再进入视频详情页并加载分 P 数据；用户互动功能需要先完成登录，再执行评论、弹幕、点赞、收藏和投币等操作。通过这种方式，测试内容能够更加接近系统的真实使用场景。
+系统功能测试主要验证用户端、创作中心和后台管理端的基础功能是否能够正常使用。系统中的部分功能需要多个接口配合完成，按照用户实际使用过程设计测试用例。
 
 系统功能测试用例如表~\ref{tab:system-function-test} 所示。
 
@@ -82,7 +82,7 @@
 	\renewcommand{\arraystretch}{1.35}
 	\caption{系统功能测试用例}
 	\label{tab:system-function-test}
-	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.25\textwidth}p{0.25\textwidth}}
+	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.28\textwidth}p{0.28\textwidth}}
 		\hline
 		\textbf{测试内容} & \textbf{测试数据} & \textbf{预期结果} & \textbf{实际结果} \\
 		\hline
@@ -124,12 +124,14 @@
 	\end{tabular}
 \end{table}
 
+\FloatBarrier
+
 从表~\ref{tab:system-function-test} 可以看出，系统的用户端浏览、搜索、播放、互动、创作中心投稿和后台审核等基础功能均能够按照预期运行。对于公开视频浏览和视频播放等功能，系统能够支持游客访问；对于评论、弹幕、点赞、收藏、投币和投稿等需要用户身份的功能，系统能够进行登录状态校验；对于后台审核等管理功能，系统能够限制普通用户越权访问。整体来看，系统功能测试结果符合预期。
 
 \section{视频处理与发布链路测试}
 \label{sec:video-process-publish-test}
 
-视频处理与发布链路是本系统较为核心的业务流程。该流程并不是由单个接口独立完成，而是涉及视频预上传、分片上传、文件合并、转码处理、投稿状态更新、后台审核和用户端播放等多个环节。因此，本节将这些连续操作作为整体链路进行测试，而不是将每个接口拆分为单独测试项。通过链路型测试，可以更直观地验证视频从用户投稿到最终发布之间的数据流转是否正确。
+视频处理与发布链路是本系统较为核心的业务流程,涉及视频预上传、分片上传、文件合并、转码处理、投稿状态更新、后台审核和用户端播放等多个环节。通过链路测试，可以直观地验证视频从用户投稿到最终发布之间的数据流转是否正确。
 
 视频处理与发布链路测试用例如表~\ref{tab:video-process-publish-test} 所示。
 
@@ -140,7 +142,7 @@
 	\renewcommand{\arraystretch}{1.35}
 	\caption{视频处理与发布链路测试用例}
 	\label{tab:video-process-publish-test}
-	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.25\textwidth}p{0.25\textwidth}}
+	\begin{tabular}{p{0.1\textwidth}p{0.28\textwidth}p{0.28\textwidth}p{0.28\textwidth}}
 		\hline
 		\textbf{测试内容} & \textbf{测试数据} & \textbf{预期结果} & \textbf{实际结果} \\
 		\hline
@@ -182,7 +184,7 @@
 \section{AI审核与异常场景测试}
 \label{sec:ai-audit-exception-test}
 
-AI 审核是本系统区别于普通视频分享平台的重要功能之一。该功能主要在视频转码完成后触发，由系统创建审核任务，并通过消息队列将任务发送给 AI 服务进行处理。AI 服务完成处理后，将审核结果回写到后端系统，后台管理员可以根据 AI 审核摘要、风险等级和审核建议进行人工复核。由于 AI 审核结果并不直接决定视频是否发布，因此本节重点测试 AI 审核链路是否能够正常流转，以及在异常情况下系统是否仍然保留人工审核能力。
+AI 审核是本系统区别于普通视频分享平台的重要功能之一。该功能主要在视频转码完成后触发，由系统创建审核任务并通过消息队列将任务发送给 AI 服务进行处理。AI 服务完成处理后，将审核结果回写到后端系统。本节测试 AI 审核链路是否能够正常流转，以及在异常情况下系统是否仍然保留人工审核能力。
 
 AI 审核与异常场景测试用例如表~\ref{tab:ai-audit-exception-test} 所示。
 
@@ -193,7 +195,7 @@ AI 审核与异常场景测试用例如表~\ref{tab:ai-audit-exception-test} 所
 	\renewcommand{\arraystretch}{1.35}
 	\caption{AI审核与异常场景测试用例}
 	\label{tab:ai-audit-exception-test}
-	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.25\textwidth}p{0.25\textwidth}}
+	\begin{tabular}{p{0.1\textwidth}p{0.3\textwidth}p{0.25\textwidth}p{0.28\textwidth}}
 		\hline
 		\textbf{测试内容} & \textbf{测试数据} & \textbf{预期结果} & \textbf{实际结果} \\
 		\hline

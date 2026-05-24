@@ -100,6 +100,8 @@
 
 算法~\ref{alg:home-video-search-impl} 对应的前端实现效果如图~\ref{fig:home-video-search-result} 所示。用户在首页顶部搜索框输入关键词“低头”并提交后，系统进入搜索结果展示模式，页面显示当前搜索关键词、排序条件以及匹配到的视频列表。视频卡片中展示了视频封面、标题、作者信息以及播放量、弹幕量、收藏量等摘要数据，右上方的播放量、发布时间、弹幕量和收藏量按钮对应搜索接口中的排序参数，用于控制搜索结果的展示顺序。该界面说明后端返回的分页视频数据已经被前端统一渲染为可浏览、可排序、可分页的视频搜索结果。
 
+
+
 首页浏览和关键词搜索虽然查询入口不同，但最终都使用 \texttt{PaginationResultVO} 封装分页结果，便于前端以统一方式渲染视频列表。接口返回的数据以 \texttt{VideoInfo} 为主要内容对象，通常包含视频编号、标题、封面、分类、作者、播放数、弹幕数、点赞数、收藏数和发布时间等展示字段。系统只允许正式发布且资源可访问的视频进入公开视频列表，未发布、待审核、转码中或资源异常的视频不会被返回。搜索热词只用于 Redis 统计用户搜索行为，不直接参与公开视频过滤。
 
 \subsection{视频播放页实现}
@@ -137,7 +139,7 @@
     \end{tabular}
 \end{table}
 
-分 P 文件列表由 \texttt{/web/video/loadVideoPList} 接口返回。接口层根据视频编号构造 \texttt{VideoInfoFileQuery}，并设置排序条件为 \texttt{file\_index asc}，再调用 \texttt{VideoInfoFileServiceImpl.findListByParam} 查询分 P 文件数据。返回结果主要包含分 P 文件编号、视频编号、文件名称、文件序号、播放路径和视频时长等信息。播放页根据这些数据生成分 P 列表，并使用当前选中的 \texttt{fileId} 请求实际播放资源。
+分 P 文件列表由 \texttt{/web/video/loadVideoPList} 接口返回。接口层根据视频编号构造 \texttt{VideoInfoFileQuery}，并设置排序条件为 \texttt{file\_index asc}，再调用 \texttt{\seqsplit{findListByParam}} 查询分 P 文件数据。返回结果主要包含分 P 文件编号、视频编号、文件名称、文件序号、播放路径和视频时长等信息。播放页根据这些数据生成分 P 列表，并使用当前选中的 \texttt{fileId} 请求实际播放资源。
 
 \begin{figure}[!htbp]
     \centering
@@ -156,7 +158,7 @@
 
 \subsection{创作中心功能结构}
 
-创作中心功能结构在代码中主要体现为一组围绕投稿态视频的接口。稿件列表查询接口根据当前登录用户编号构造 \texttt{VideoInfoPostQuery}，并按照创建时间倒序返回分页结果；稿件数量统计接口分别统计审核通过、审核失败和处理中稿件数量；稿件详情接口根据视频编号读取 \texttt{VideoInfoPost} 和对应的 \texttt{VideoInfoFilePost} 列表，并返回给编辑页面。相关接口说明如表~\ref{tab:center-video-post-api} 所示。
+创作中心功能结构在代码中主要体现为一组围绕投稿态视频的接口。相关接口说明如表~\ref{tab:center-video-post-api} 所示。
 
 \begin{table}[!htbp]
     \centering
@@ -193,6 +195,8 @@
     \end{tabular}
 \end{table}
 
+稿件列表查询接口根据当前登录用户编号构造 \texttt{VideoInfoPostQuery}，并按照创建时间倒序返回分页结果；稿件数量统计接口分别统计审核通过、审核失败和处理中稿件数量；稿件详情接口根据视频编号读取 \texttt{VideoInfoPost} 和对应的 \texttt{VideoInfoFilePost} 列表，并返回给编辑页面。
+
 创作中心的核心对象关系如图~\ref{fig:center-video-post-class} 所示。\texttt{CenterVideoPostController} 负责接收创作中心请求，并将用户编号写入查询对象或投稿对象中；\texttt{VideoInfoPostService} 负责处理投稿主记录保存、分页查询和状态更新；\texttt{VideoInfoFilePostService} 负责读取分 P 文件列表；\texttt{VideoPostEditInfo} 用于组合投稿主信息和分 P 文件信息，返回给编辑页面。
 
 \begin{figure}[!htbp]
@@ -206,7 +210,7 @@
 
 \subsection{视频分片上传实现}
 
-视频分片上传由资源服务处理，主要涉及 \texttt{/preUploadVideo}、\texttt{/uploadVideo} 和 \texttt{/deleteUploadVideo} 三个接口。上传前，系统根据文件名和分片数量创建上传任务，并在 Redis 中保存 \texttt{UploadFileDto}；上传过程中，每个分片请求都携带 \texttt{uploadId} 和 \texttt{chunkIndex}，资源服务根据当前用户编号和 \texttt{uploadId} 读取 Redis 中的上传任务，再将分片写入临时目录。
+视频分片上传由资源服务处理，上传前，系统根据文件名和分片数量创建上传任务，并在 Redis 中保存 \texttt{UploadFileDto}；上传过程中，每个分片请求都携带 \texttt{uploadId} 和 \texttt{chunkIndex}，资源服务根据当前用户编号和 \texttt{uploadId} 读取 Redis 中的上传任务，再将分片写入临时目录。
 
 视频分片上传相关接口说明如表~\ref{tab:video-upload-api} 所示。
 
@@ -233,8 +237,6 @@
     \end{tabular}
 \end{table}
 
-视频分片上传过程如图~\ref{fig:video-chunk-upload-sequence} 所示。该图只描述资源上传阶段，不继续展开文件合并和转码处理，避免与后续“视频转码与资源服务实现”部分重复。
-
 \begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.95\textwidth]{images/video_chunk_upload_sequence.png}
@@ -242,11 +244,13 @@
     \label{fig:video-chunk-upload-sequence}
 \end{figure}
 
+视频分片上传过程如图~\ref{fig:video-chunk-upload-sequence} 所示。该图只描述资源上传阶段，不继续展开文件合并和转码处理，避免与后续“视频转码与资源服务实现”部分重复。
+
 上传阶段产生的 \texttt{uploadId} 并不等同于视频编号。它只表示一次临时文件上传任务，真正的视频编号和分 P 文件编号要在投稿保存阶段生成。这样可以把“文件是否上传完成”和“投稿信息是否保存”分开处理，避免用户只上传了临时文件但没有提交投稿时，系统直接生成业务视频记录。
 
 \subsection{投稿信息保存与状态初始化实现}
 
-投稿保存入口为 \texttt{/ucenter/postVideo}。接口接收视频编号、封面、标题、分类、投稿类型、标签、简介、互动配置和 \texttt{uploadFileList} 等参数，其中 \texttt{uploadFileList} 会被反序列化为 \texttt{VideoInfoFilePost} 列表。控制器设置当前用户编号后，调用 \texttt{VideoInfoPostService.saveVideoInfo} 完成投稿保存。
+投稿保存入口为 \texttt{/ucenter/postVideo}。接口接收视频编号、封面、标题、分类、投稿类型、标签、简介、互动配置和 \texttt{uploadFileList} 等参数，其中 \texttt{uploadFileList} 会被反序列化为 \texttt{VideoInfoFilePost} 列表。控制器设置当前用户编号后，调用 \texttt{saveVideoInfo} 完成投稿保存。
 
 投稿保存的关键不是简单写入一条视频记录，而是根据新增投稿和编辑投稿两种情况分别处理。若请求中没有 \texttt{videoId}，系统生成新的视频编号，将投稿主记录初始化为转码中状态，并插入 \texttt{VideoInfoPost}。若请求中存在 \texttt{videoId}，系统先查询原有投稿数据，并拒绝处于转码中或待审核状态的视频继续编辑，避免异步转码或审核结果覆盖新的投稿内容。
 
@@ -263,17 +267,26 @@
 
 编辑投稿时，系统会读取数据库中已有的分 P 文件列表，并与本次提交的 \texttt{uploadFileList} 进行比较。若数据库中的某个分 P 文件在本次提交列表中不存在，说明该分 P 被删除，系统会删除对应的投稿态文件记录，并将文件路径写入 Redis 删除队列；若本次提交中存在 \texttt{fileId} 为空的分 P，说明它是新增文件，系统会生成新的文件编号，并将转码结果初始化为转码中。若没有新增文件，但标题、封面、标签、简介、投稿类型或分 P 文件名发生变化，则视频状态会被更新为待审核。
 
-所有分 P 文件处理完成后，系统调用批量新增或更新方法保存 \texttt{VideoInfoFilePost} 列表。对于新增的分 P 文件，系统还会补充用户编号和视频编号，并调用 \texttt{RedisComponent.addFile2TransferQueue} 写入转码队列。资源服务后续从该队列中取出文件任务，完成临时分片合并和播放资源生成。通过这种方式，投稿接口只负责业务数据保存和状态初始化，不等待耗时的视频转码处理完成。
+所有分 P 文件处理完成后，系统调用批量新增或更新方法保存 \texttt{VideoInfoFilePost} 列表。对于新增的分 P 文件，系统还会补充用户编号和视频编号，并调用 \texttt{\seqsplit{addFile2TransferQueue}} 写入转码队列。资源服务后续从该队列中取出文件任务，完成临时分片合并和播放资源生成。通过这种方式，投稿接口只负责业务数据保存和状态初始化，不等待耗时的视频转码处理完成。
 
 \section{视频转码与资源服务实现}
 
-视频转码与资源服务实现主要处理投稿视频文件从临时分片资源到可播放资源的转换过程。投稿保存阶段已经将新增分 P 文件写入 Redis 转码队列，本节不再重复投稿侧的状态初始化逻辑，而是围绕资源服务内部的队列消费、分片合并、视频转码、HLS 文件生成和播放资源读取展开说明。
+视频转码与资源服务实现主要处理投稿视频文件从临时分片资源到可播放资源的转换过程。投稿保存阶段已经将新增分 P 文件写入 Redis 转码队列。
 
-在项目实现中，资源服务并不通过同步接口等待视频处理完成，而是由后台任务持续消费 Redis 中的转码任务。每个转码任务对应一个投稿态分 P 文件，任务对象中包含用户编号、视频编号、文件编号和上传标识等信息。资源服务根据这些字段定位上传阶段产生的临时目录，并在处理完成后通过主站服务回写文件转码结果。
+资源服务并不通过同步接口等待视频处理完成，而是由后台任务持续消费 Redis 中的转码任务。每个转码任务对应一个投稿态分 P 文件，任务对象中包含用户编号、视频编号、文件编号和上传标识等信息。资源服务根据这些字段定位上传阶段产生的临时目录，并在处理完成后通过主站服务回写文件转码结果。
 
 \subsection{资源服务职责}
 
 资源服务的职责主要集中在文件资源本身，不直接决定视频是否可以发布。它负责从 Redis 转码队列中读取待处理分 P 文件，完成临时目录迁移、分片合并、视频信息读取、编码兼容处理和 HLS 播放资源生成，并将处理结果回写给主站业务服务。播放阶段，资源服务还负责根据分 P 文件编号读取 \texttt{m3u8} 索引文件和 \texttt{ts} 切片文件。
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/resource_service_class.png}
+    \caption{资源服务关键类图}
+    \label{fig:resource-service-class}
+\end{figure}
+
+资源服务关键类之间的关系如图~\ref{fig:resource-service-class} 所示。\texttt{ExecuteQueueTask} 负责从 Redis 中获取转码任务，\texttt{TransferFileComponent} 负责实际文件处理，\texttt{FFmpegUtils} 负责执行视频处理命令，\texttt{FileController} 负责播放资源输出，\texttt{VideoClient} 则用于资源服务与主站视频数据之间的交互。
 
 资源服务中的关键类和职责如表~\ref{tab:resource-service-core-class} 所示。
 
@@ -307,15 +320,6 @@
         \bottomrule
     \end{tabular}
 \end{table}
-
-资源服务关键类之间的关系如图~\ref{fig:resource-service-class} 所示。\texttt{ExecuteQueueTask} 负责从 Redis 中获取转码任务，\texttt{TransferFileComponent} 负责实际文件处理，\texttt{FFmpegUtils} 负责执行视频处理命令，\texttt{FileController} 负责播放资源输出，\texttt{VideoClient} 则用于资源服务与主站视频数据之间的交互。
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.9\textwidth]{images/resource_service_class.png}
-    \caption{资源服务关键类图}
-    \label{fig:resource-service-class}
-\end{figure}
 
 通过上述划分，资源服务内部形成了较为清晰的处理边界。队列任务只负责触发处理，转码组件负责文件转换，工具类负责执行 FFmpeg 命令，控制器负责播放资源读取，主站服务负责保存最终业务状态。
 
@@ -377,7 +381,7 @@ HLS 播放资源访问过程如图~\ref{fig:hls-resource-sequence} 所示。
 
 \begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{images/hls_resource_sequence.png}
+    \includegraphics[width=0.9\textwidth]{images/hls_resource_sequence.png}
     \caption{HLS 播放资源访问时序图}
     \label{fig:hls-resource-sequence}
 \end{figure}
@@ -503,6 +507,7 @@ HLS 播放资源访问过程如图~\ref{fig:hls-resource-sequence} 所示。
 
 效果如图~\ref{fig:comment-danmu-player-result} 和图~\ref{fig:comment-danmu-comment-result} 所示。图~\ref{fig:comment-danmu-player-result} 展示了视频播放页中的弹幕功能，用户可以在播放器下方输入弹幕内容，选择弹幕显示方式和颜色后发送，已发送的弹幕会按照播放时间叠加显示在视频画面上。图~\ref{fig:comment-danmu-comment-result} 展示了评论区功能，页面支持发布评论、上传评论图片、按热度或时间排序，并提供评论点赞、点踩、回复、置顶和删除等交互操作。上述界面分别对应算法中的弹幕处理分支和评论处理分支，说明系统能够将互动接口处理结果渲染为可直接操作的播放页互动功能。
 
+
 \subsection{点赞、收藏、投币与关注实现}
 
 点赞、收藏和投币统一由 \texttt{/userAction/doAction} 接口处理。接口接收视频编号、行为类型、行为数量和评论编号等参数，并在登录校验通过后构造 \texttt{UserAction} 对象。服务层首先根据视频编号查询视频信息，再根据 \texttt{actionType} 判断具体行为类型。如果行为类型不存在，系统会直接返回业务异常，避免非法行为类型写入数据库。
@@ -531,8 +536,6 @@ HLS 播放资源访问过程如图~\ref{fig:hls-resource-sequence} 所示。
 
 \subsection{后台管理端整体实现}
 
-后台管理端整体实现主要包括管理员验证码生成、管理员登录、后台令牌保存和管理接口调用等内容。管理员登录前，系统通过 \texttt{/admin/account/checkCode} 生成验证码，并将验证码内容保存到 Redis 中。管理员提交账号、密码和验证码后，\texttt{AccountController.login} 会先校验验证码，再校验配置文件中的管理员账号和密码。校验通过后，系统生成后台登录令牌，并将其写入 Cookie，同时在 Redis 中保存管理员登录信息。
-
 后台管理端账号相关接口如表~\ref{tab:admin-account-api} 所示。
 
 \begin{table}[!htbp]
@@ -557,6 +560,8 @@ HLS 播放资源访问过程如图~\ref{fig:hls-resource-sequence} 所示。
         \bottomrule
     \end{tabular}
 \end{table}
+
+主要包括管理员验证码生成、管理员登录、后台令牌保存和管理接口调用等内容。管理员登录前，系统通过 \texttt{/admin/account/checkCode} 生成验证码，并将验证码内容保存到 Redis 中。管理员提交账号、密码和验证码后，\texttt{AccountController.login} 会先校验验证码，再校验配置文件中的管理员账号和密码。校验通过后，系统生成后台登录令牌，并将其写入 Cookie，同时在 Redis 中保存管理员登录信息。
 
 后台管理端关键类关系如图~\ref{fig:admin-manage-class} 所示。该图只展示本节涉及的主要控制器、服务调用对象和数据对象，不再展开网关转发过程，避免与前文系统总体架构图重复。
 
@@ -664,12 +669,14 @@ AI 审核与发布同步涉及的关键对象如图~\ref{fig:ai-audit-publish-cl
 
 从状态角度看，视频投稿、AI 任务和人工审核之间存在较明确的先后关系。投稿视频先经过资源服务转码，转码完成后进入待审核状态；AI 审核任务用于生成初审建议；人工审核通过后，系统才会将投稿态数据同步到正式发布表。该状态变化如图~\ref{fig:ai-audit-state} 所示。
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.86\textwidth]{images/ai_audit_state.png}
     \caption{AI 审核与发布状态流转图}
     \label{fig:ai-audit-state}
 \end{figure}
+
+\FloatBarrier
 
 \subsection{AI 审核任务创建与消息投递实现}
 
@@ -740,11 +747,11 @@ AI 初审与人工终审的协同关系主要体现在决策边界上。AI 服�
 
 多模态 AI 审核服务是 AI 初审的具体执行模块。该服务接收主站服务投递的视频审核请求后，按照分 P 文件逐个处理视频内容，并输出分 P 级和视频级审核结果。
 
-AI 审核服务不会直接将完整视频输入多模态模型，而是先对视频进行预处理，将其拆分为音频、语音文本、声音事件和关键帧等结构化证据。随后，系统以时间窗口为单位构建审核片段，将同一时间段内的画面、语音文本、声音事件和投稿元数据组合为 \texttt{segment}，再调用多模态模型进行审核。
+AI 审核服务不会直接将完整视频输入多模态模型，而是先对视频进行预处理，将其拆分为音频、语音文本、声音事件和关键帧等结构化证据。随后，系统根据视频时长、场景切分结果和风险声音时间点构建 \texttt{visual\_scene} 场景片段，再生成 \texttt{adaptive\_review\_window} 或 \texttt{review\_window} 审核窗口。每个审核窗口都会聚合该时间范围内的画面、语音文本、声音事件和投稿元数据，最后调用 \texttt{Qwen} 进行多模态判断。
 
 \subsection{AI 审核服务结构}
 
-AI 审核服务可以按照处理职责划分为审核编排层、模型能力层、片段构建层和结果生成层。审核编排层负责控制完整审核流程，包括接收审核请求、初始化模型服务、调用视频处理方法、收集异常信息和返回最终结果。模型能力层负责封装具体模型调用，包括 VAD 语音活动检测、Whisper 语音转写、YAMNet 声音事件识别和 Qwen 多模态审核。片段构建层负责将不同模态的数据按照时间戳对齐，生成可供模型审核的 \texttt{segment}。结果生成层则负责将片段级结果归并为分 P 级和视频级审核建议。
+AI 审核服务可以按照处理职责划分为审核编排层、模型能力层、片段构建层和结果生成层。审核编排层负责控制完整审核流程，包括接收审核请求、初始化模型服务、调用视频处理方法、收集异常信息和返回最终结果。模型能力层负责封装具体模型调用，包括 VAD 语音活动检测、Whisper 语音转写、YAMNet 声音事件识别和 Qwen 多模态审核，其中当前多模态视觉语言模型使用 \texttt{Qwen/Qwen3-VL-4B-Instruct}。片段构建层负责将不同模态的数据按照时间戳对齐，生成可供模型审核的 \texttt{segment} 和审核窗口。结果生成层则负责将片段级结果归并为分 P 级和视频级审核建议。
 
 \texttt{ModerationEngine} 属于审核流程入口和运行状态管理，\texttt{VideoModerationService} 为具体的视频分析和模型调用。前者负责加载服务对象、控制同一时间的审核执行、维护模型健康状态和处理运行异常；后者负责视频音频流检测、音频提取、语音识别、声音事件识别、关键帧抽取、片段构建和模型审核。通过这种划分，系统能够将流程控制和模型能力调用分离，降低单个类的复杂度。
 
@@ -757,19 +764,11 @@ AI 审核服务结构如图~\ref{fig:ai-service-class} 所示。
     \label{fig:ai-service-class}
 \end{figure}
 
-AI 审核服务启动时，需要先完成模型加载和运行环境检查。审核请求进入后，系统会为本次视频审核创建一次模型输入追踪会话。追踪会话用于保存片段输入、提示词、代表帧路径、模型原始响应和解析后的结果。该设计并不直接影响审核结论，但有助于后续调试和复核。当模型输出结果与人工判断存在差异时，开发人员可以根据追踪文件回看模型实际接收到的图片和文本，从而判断问题来自片段构建、提示词设计还是模型本身。
-
-整体来看，AI 审核服务结构强调“编排流程”和“模型调用”的分离。审核编排层负责把控处理顺序，模型能力层负责完成具体分析，片段构建层负责组织多模态证据，结果生成层负责输出可落库、可展示和可复核的审核结果。这样的结构能够使 AI 审核流程更加清晰，也便于后续替换模型或扩展新的审核能力。
+AI 审核服务结构以“编排流程”和“模型调用”来分离。审核编排层负责把控处理顺序，模型能力层负责完成具体分析，片段构建层负责组织多模态证据，生成可落库、可展示和可复核的审核结果，便于后续替换模型或扩展新的审核能力。
 
 \subsection{视频预处理与音频提取实现}
 
-视频预处理的目标是将原始视频文件转换为后续审核模型可以使用的中间数据。系统首先通过 FFmpeg 相关能力检测视频中是否存在音频流。如果视频存在音频流，则提取出 16kHz 的 WAV 音频文件，供后续 VAD、Whisper 和 YAMNet 使用；如果视频不存在音频流，则跳过音频分析流程，但仍然继续进行关键帧抽取和视觉审核，避免纯画面视频因为没有音频而被漏审。
-
-音频提取完成后，系统会形成两条分析路径。第一条路径是语音文本分析，系统先通过 VAD 检测音频中的有效语音片段，再调用 Whisper 将这些语音片段转写为文本。该路径主要用于判断视频中“说了什么”。第二条路径是声音事件分析，系统通过 YAMNet 对音频进行环境声音和异常声音识别。该路径主要用于判断视频中“出现了什么声音”，例如枪声、爆炸声、尖叫声、警报声等。
-
-视频预处理阶段还需要提取关键帧。关键帧是后续 Qwen 多模态审核的重要视觉输入。系统不适合将视频中的所有帧都送入模型，因为这样会造成较大的计算开销，也会产生大量重复画面。因此，系统按照一定的抽帧频率提取代表帧，并结合风险声音时间点补充附近画面。通过这种方式，可以在控制模型调用次数的同时，提高对短时风险画面的覆盖能力。
-
-视频预处理与音频提取流程如图~\ref{fig:ai-video-preprocess-flow} 所示。
+视频预处理的目标是将原始视频文件转换为后续审核模型可以使用的中间数据。视频预处理与音频提取流程如图~\ref{fig:ai-video-preprocess-flow} 所示。
 
 \begin{figure}[htbp]
     \centering
@@ -777,6 +776,14 @@ AI 审核服务启动时，需要先完成模型加载和运行环境检查。�
     \caption{视频预处理与音频提取流程图}
     \label{fig:ai-video-preprocess-flow}
 \end{figure}
+
+\FloatBarrier
+
+系统首先通过 FFmpeg 相关能力检测视频中是否存在音频流，存在则提取出 16kHz 的 WAV 音频文件，供后续 VAD、Whisper 和 YAMNet 使用；不存在则继续进行关键帧抽取和视觉审核，避免纯画面视频因为没有音频而被漏审。
+
+音频提取完成后，系统会形成两条分析路径。第一条路径是语音文本分析，系统先通过 VAD 检测音频中的有效语音片段，再调用 Whisper 将这些语音片段转写为文本。该路径主要用于判断视频中“说了什么”。第二条路径是声音事件分析，系统通过 YAMNet 对音频进行环境声音和异常声音识别。该路径主要用于判断视频中“出现了什么声音”，例如枪声、爆炸声、尖叫声、警报声等。
+
+视频预处理阶段还需要提取关键帧。关键帧是后续 Qwen 多模态审核的重要视觉输入。系统不适合将视频中的所有帧都送入模型，因为这样会造成较大的计算开销，也会产生大量重复画面。因此按照一定的抽帧频率提取代表帧，并结合风险声音时间点补充附近画面。通过这种方式，可以在控制模型调用次数的同时，提高对短时风险画面的覆盖能力。
 
 视频预处理与音频提取过程如算法~\ref{alg:video-preprocess-impl} 所示。
 
@@ -800,7 +807,7 @@ AI 审核服务启动时，需要先完成模型加载和运行环境检查。�
                 \If{$V$ 不为空}
                     \State 调用 Whisper 对语音片段集合 $V$ 进行转写，得到语音文本集合 $S$
                 \Else
-                    \State 保持 $S \leftarrow \emptyset$，后续由视觉关键帧和声音事件继续构建审核片段
+                    \State 保持 $S \leftarrow \emptyset$，后续由视觉关键帧和声音事件继续构建审核窗口
                 \EndIf
             \EndIf
         \Else
@@ -821,67 +828,60 @@ AI 审核服务启动时，需要先完成模型加载和运行环境检查。�
 
 \subsection{语音文本、声音事件与关键帧审核实现}
 
-完成视频预处理后，系统需要将语音文本、声音事件和关键帧组织为可供 Qwen 审核的片段。审核片段并不只依赖语音文本生成，而是由语音文本、风险声音和关键帧共同触发。如果视频中存在有效语音，系统会根据 Whisper 的转写结果创建文本-视觉片段；如果视频没有语音但存在风险声音，系统会根据 YAMNet 识别出的声音事件创建声音事件片段；如果视频既没有语音文本，也没有明显风险声音，系统仍然会基于抽取到的关键帧创建视觉补充片段。通过这种多源触发方式，系统可以避免无语音视频或低语音视频完全绕过审核流程。
+完成视频预处理后，系统需要将语音文本、声音事件和关键帧组织为可供 Qwen 审核的时间窗口。真实实现并不是分别从语音、声音和画面生成三类独立片段，而是先以视频画面为主轴构建 \texttt{visual\_scene} 场景片段。场景片段的边界主要来自视频时长、场景切分结果、固定窗口长度以及风险声音附近的补充边界。这样可以保证即使视频没有语音文本，也能围绕画面和时间轴进入后续审核流程。
 
-在语音文本处理方面，Whisper 的转写结果会被保存为带开始时间和结束时间的文本片段。系统根据文本片段的时间范围创建审核窗口，并在窗口内查找对应的关键帧和声音事件。这样在后续模型判断时，语音文本不会被孤立处理，而是能够结合当时的视频画面和声音上下文共同分析。
+在语音文本处理方面，Whisper 的转写结果会被保存为带开始时间和结束时间的文本片段，并尽量保留词级时间戳。系统不会单独把一段语音直接作为最终审核单元，而是在 \texttt{visual\_scene} 或后续审核窗口内查找对应的语音文本。如果语音片段时间较长，系统会把当前窗口内命中的文字作为主要证据，同时保留整段语音上下文作为辅助信息，避免长语音内容被错误绑定到不相关画面。
 
-在声音事件处理方面，YAMNet 的识别结果会作为片段上下文加入审核输入。对于普通声音事件，系统可以只将其作为辅助信息；对于枪声、爆炸、尖叫、警报等风险声音，系统会以声音事件时间点为中心创建审核窗口，并查找附近的关键帧。若附近存在可用关键帧，则将声音事件和画面一起送入 Qwen；若视觉证据不足，则在片段中记录覆盖问题，供后续综合风险结果生成时参考。
+在声音事件处理方面，YAMNet 的识别结果会按照时间戳对齐到场景片段和审核窗口中。对于普通声音事件，系统将其作为背景上下文加入提示词；对于枪声、爆炸、尖叫、警报等风险声音，系统会在构建视觉窗口时加入风险声音前后的补充边界，并在后续 \texttt{adaptive\_review\_window} 中标记 \texttt{risk\_focus} 原因。若风险声音附近缺少可用画面，系统会记录覆盖问题，并在综合结论中倾向人工复核。
 
-在视觉处理方面，系统不会将视频中的所有帧直接输入模型，而是围绕关键帧构建视觉审核窗口。关键帧可以来自固定间隔抽帧，也可以来自风险声音附近的补充抽帧。对于没有语音文本的视频，只要系统能够提取到关键帧，就可以构建 \texttt{visual-only segment}。该类片段主要用于覆盖纯画面、背景音乐、无声视频或 VAD 未检测到语音的情况，从而减少因缺少语音文本导致的漏审问题。
+在视觉处理方面，系统不会将视频中的所有帧直接输入模型，而是先抽取关键帧，并为每个场景片段选择代表帧或生成 contact sheet。随后系统根据配置生成固定窗口 \texttt{review\_window}，或默认生成自适应窗口 \texttt{adaptive\_review\_window}。审核窗口会合并一个或多个 \texttt{visual\_scene}，并携带代表帧、窗口文字、声音摘要、投稿元数据和文本规则预检结果，最后由 \texttt{Qwen/Qwen3-VL-4B-Instruct} 给出片段级判断。
 
-多模态审核片段构建过程如图~\ref{fig:ai-segment-build-flow} 所示。系统分别从语音文本、风险声音事件和未覆盖关键帧中生成不同类型的审核片段，再将投稿标题、简介和标签等元数据加入片段上下文，最后交由 Qwen 进行多模态审核。
+多模态审核片段构建过程如图~\ref{fig:ai-segment-build-flow} 所示。系统先根据视觉场景和风险声音构建场景片段，再按照固定或自适应策略生成 Qwen 审核窗口，并将语音、声音、画面和投稿元数据作为同一时间范围内的上下文组合起来，从而减少重复审核窗口，同时提高无语音视频和低语音视频的覆盖能力。
 
 \begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.9\textwidth]{images/ai_segment_build_flow.png}
+    \includegraphics[width=1\textwidth]{images/ai_segment_build_flow.png}
     \caption{多模态审核片段构建流程图}
     \label{fig:ai-segment-build-flow}
 \end{figure}
 
-多源触发的审核片段构建过程如算法~\ref{alg:multi-source-segment-build} 所示。该算法的核心思想是：优先根据语音文本创建文本-视觉片段，再根据未覆盖的风险声音创建声音事件片段，最后根据未覆盖的关键帧创建视觉补充片段。通过这种顺序处理，可以减少重复片段的生成，同时保证没有语音内容的视频仍然能够进入视觉审核流程。
+基于场景窗口的多模态审核片段构建过程如算法~\ref{alg:multi-source-segment-build} 所示。该算法的核心思想是：先围绕视频画面和时间轴生成 \texttt{visual\_scene}，再将语音文本、声音事件和投稿元数据对齐到场景片段中，最后生成适合 Qwen 调用的审核窗口。通过这种处理方式，系统既能覆盖纯画面内容，也能在风险声音或文本规则命中时缩小重点审核范围。
 
 \begin{algorithm}[!htbp]
-    \caption{多源触发的审核片段构建算法}
+    \caption{基于场景窗口的多模态审核片段构建算法}
     \label{alg:multi-source-segment-build}
     \begin{algorithmic}[1]
-        \Require 语音文本集合 $T$，声音事件集合 $A$，关键帧集合 $F$，投稿元数据 $M$
-        \Ensure 审核片段集合 $S$
+        \Require 语音文本集合 $T$，声音事件集合 $A$，关键帧集合 $F$，投稿元数据 $M$，视频时长 $D$，场景切分点集合 $B$
+        \Ensure Qwen 审核窗口集合 $W$
 
-        \State 初始化审核片段集合 $S \leftarrow \emptyset$
-        \State 初始化已覆盖时间窗口集合 $W \leftarrow \emptyset$
+        \State 初始化场景片段集合 $S \leftarrow \emptyset$，审核窗口集合 $W \leftarrow \emptyset$
+        \State 根据 $D$、$B$、固定窗口长度和风险声音时间点生成视觉时间边界
+        \State 合并过短窗口，得到 \texttt{visual\_scene} 时间范围集合
 
-        \For{每一个语音文本片段 $t \in T$}
-            \State 以 $t.start$ 和 $t.end$ 创建审核窗口 $w_t$
-            \State 匹配窗口内或附近的关键帧和声音事件
-            \State 构建 \texttt{text-visual segment}，并加入 $S$
-            \State 将 $w_t$ 加入 $W$
+        \For{每一个视觉时间范围 $r$}
+            \State 从 $T$ 中提取 $r$ 内的语音文本和必要的长语音上下文
+            \State 从 $A$ 中提取 $r$ 内的普通声音事件和风险声音事件
+            \State 从 $F$ 中选择 $r$ 内或附近的代表关键帧
+            \State 结合 $M$ 构建 \texttt{visual\_scene}，并记录 \texttt{modalities} 和覆盖问题
+            \State 将该场景片段加入 $S$
         \EndFor
 
-        \For{每一个风险声音事件 $a \in A$}
-            \If{$a.timestamp$ 未被 $W$ 覆盖}
-                \State 以 $a.timestamp$ 为中心创建审核窗口 $w_a$
-                \State 匹配附近关键帧
-                \State 构建 \texttt{audio-event segment}，并加入 $S$
-                \State 将 $w_a$ 加入 $W$
-            \EndIf
+        \If{审核窗口模式为固定窗口}
+            \State 按固定时长从 $S$ 中合并场景片段，生成 \texttt{review\_window} 并加入 $W$
+        \Else
+            \State 根据风险声音、文本规则命中和覆盖缺口生成重点窗口
+            \State 将重点窗口和覆盖窗口合并，生成 \texttt{adaptive\_review\_window} 并加入 $W$
+        \EndIf
+
+        \For{每一个审核窗口 $w \in W$}
+            \State 生成代表帧 contact sheet
+            \State 根据画面、窗口文字、声音摘要、投稿元数据和文本规则预检结果构造 Qwen 输入
+            \State 调用 \texttt{Qwen/Qwen3-VL-4B-Instruct} 获取审核结果
+            \State 将风险分数、风险类型、审核建议、判断理由和追踪文件路径写入 $w$
         \EndFor
 
-        \For{每一个关键帧 $f \in F$}
-            \If{$f.timestamp$ 未被 $W$ 覆盖}
-                \State 以 $f.timestamp$ 为中心创建视觉审核窗口 $w_f$
-                \State 构建 \texttt{visual-only segment}，并加入 $S$
-                \State 将 $w_f$ 加入 $W$
-            \EndIf
-        \EndFor
-
-        \For{每一个审核片段 $s \in S$}
-            \State 根据代表帧、文本内容、声音事件和投稿元数据构造 Qwen 输入
-            \State 调用 Qwen 获取片段审核结果
-            \State 将风险等级、风险类型、审核建议和判断理由写入片段 $s$
-        \EndFor
-
-        \State 按片段开始时间对 $S$ 排序
-        \State \Return $S$
+        \State 按窗口开始时间对 $W$ 排序
+        \State \Return $W$
     \end{algorithmic}
 \end{algorithm}
 
@@ -899,30 +899,31 @@ AI 审核服务启动时，需要先完成模型加载和运行环境检查。�
     \label{fig:ai-segment-detail-result}
 \end{figure}
 
-算法~\ref{alg:multi-source-segment-build} 对应的后台展示效果如图~\ref{fig:ai-segment-audit-result} 和图~\ref{fig:ai-segment-detail-result} 所示。图~\ref{fig:ai-segment-audit-result} 展示了后台审核详情页中分 P 文件的 AI 审核结果，页面在播放预览区域下方以时间轴方式标记不同审核片段，并在右侧展示 AI 状态、AI 建议、风险分数、片段数量和片段类型等信息。图~\ref{fig:ai-segment-detail-result} 展示了某个风险片段的具体证据，包括片段时间范围、风险类型、风险分数、模型判断说明、语音文本内容、风险音频标记以及代表关键帧画面。该界面说明系统已将语音文本、声音事件和关键帧按照时间窗口组织为可查看的审核片段，便于管理员根据片段证据进行人工复核。
+算法~\ref{alg:multi-source-segment-build} 对应的后台展示效果如图~\ref{fig:ai-segment-audit-result} 和图~\ref{fig:ai-segment-detail-result} 所示。图~\ref{fig:ai-segment-audit-result} 展示了后台审核详情页中分 P 文件的 AI 审核结果，页面在播放预览区域下方以时间轴方式标记不同审核窗口，并在右侧展示 AI 状态、AI 建议、风险分数、窗口数量和风险来源等信息。图~\ref{fig:ai-segment-detail-result} 展示了某个风险窗口的具体证据，包括时间范围、风险类型、风险分数、模型判断说明、语音文本内容、风险音频标记以及代表关键帧画面。该界面说明系统已将语音文本、声音事件和关键帧按照审核窗口组织为可查看的证据，便于管理员根据片段证据进行人工复核。
 
-构建完成后，每个审核片段都会保存开始时间、结束时间、片段类型、代表帧路径、语音文本摘要、声音事件摘要和模型审核结果。片段类型主要包括 \texttt{text-visual}、\texttt{audio-event} 和 \texttt{visual-only} 三类。后台管理员查看审核结果时，可以根据片段类型判断风险来源，从而区分该风险是由语音内容触发、声音事件触发，还是由画面关键帧触发。
 
-整体来看，该实现方式将语音、声音和画面三类信息按照时间窗口进行组织，使 Qwen 审核输入不再只依赖某一种模态。对于有语音的视频，系统能够结合语音文本与画面进行判断；对于没有语音但存在风险声音的视频，系统能够围绕声音事件补充画面证据；对于无语音或低语音视频，系统仍然可以借助关键帧构建视觉审核片段，从而提高视频审核的覆盖范围。
+构建完成后，每个审核窗口都会保存开始时间、结束时间、来源类型、代表帧路径、语音文本摘要、声音事件摘要、模型审核结果和模型输入追踪文件。窗口来源主要包括 \texttt{visual\_scene}、\texttt{adaptive\_review\_window} 和 \texttt{review\_window}。后台管理员查看审核结果时，可以结合 \texttt{modalities}、风险声音标记、文本摘要和代表帧判断风险来源，从而区分该风险主要来自语音内容、声音事件、投稿元数据还是画面证据。
+
+整体来看，该实现方式将语音、声音和画面三类信息按照视觉场景和审核窗口进行组织，使 Qwen 审核输入不再只依赖某一种模态。对于有语音的视频，系统能够结合语音文本与画面进行判断；对于没有语音但存在风险声音的视频，系统能够围绕声音事件补充画面证据；对于无语音或低语音视频，系统仍然可以借助关键帧和视觉窗口进入审核流程，从而提高视频审核的覆盖范围。
 
 \subsection{综合风险结果生成实现}
 
 片段级审核完成后，系统需要将多个 \texttt{segment} 的审核结果汇总为分 P 级结果，再进一步汇总为视频级结果。分 P 级结果用于说明某个视频文件是否存在风险，视频级结果则用于后台审核列表展示和管理员最终审核参考。由于一个视频可能包含多个分 P 文件，因此系统不能只根据某一个片段结果直接决定整个视频的 AI 建议，而是需要按照层级逐步汇总。
 
-综合风险结果生成采用高风险优先原则。若任一片段被判断为高风险，则该分 P 的 AI 建议应倾向于驳回；若不存在明确高风险，但存在中风险、模型判断不确定、缺少视觉证据或声音事件无法确认等情况，则建议人工复核；只有所有片段均未发现明显风险时，分 P 级结果才建议通过。该策略能够避免高风险片段被大量低风险片段稀释。
+综合风险结果生成采用风险优先和人工兜底结合的策略。系统不会简单地因为任一窗口分数较高就直接给出驳回结论，而是综合判断风险类型、风险分数、证据完整性和命中次数。对于直接拒绝类风险、零容忍风险、多个高风险窗口，或高风险时长占比达到阈值的情况，结果会倾向于驳回；对于普通中高风险、模型判断不确定、缺少视觉证据、Qwen 调用不完整或声音事件无法确认的情况，则优先建议人工复核；只有所有审核窗口均未发现明显风险且审核过程完整时，分 P 级结果才建议通过。该策略既能避免高风险内容被低风险窗口稀释，也能降低单个模型判断直接决定发布结果带来的误判风险。
 
 综合风险结果生成流程如图~\ref{fig:ai-risk-result-flow} 所示。
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{images/ai_risk_result_flow.png}
+    \includegraphics[width=1\textwidth]{images/ai_risk_result_flow.png}
     \caption{综合风险结果生成流程图}
     \label{fig:ai-risk-result-flow}
 \end{figure}
 
-在生成分 P 结果时，系统会遍历该分 P 下的所有审核片段，提取命中风险的片段，并记录片段时间范围、风险类型、风险等级、模型原因、代表帧路径和文本摘要。对于证据不足但仍存在风险可能的片段，系统也需要保留对应说明，避免后台管理员只能看到一个模糊的“复核”结论。分 P 结果应当同时包含整体建议和具体证据，便于管理员定位问题内容。
+在生成分 P 结果时，系统会遍历该分 P 下的所有审核窗口，提取命中风险的窗口，并记录时间范围、风险类型、风险分数、模型原因、代表帧路径、文本摘要和声音事件摘要。对于证据不足但仍存在风险可能的窗口，系统也会保留覆盖问题和不完整原因，避免后台管理员只能看到一个模糊的“复核”结论。分 P 结果同时包含整体建议和具体证据，便于管理员定位问题内容。
 
-在生成视频级结果时，系统继续对所有分 P 结果进行归并。若任一分 P 建议驳回，则视频级 AI 建议为驳回；若不存在驳回但存在人工复核，则视频级 AI 建议为人工复核；只有所有分 P 均建议通过时，视频级 AI 建议才为通过。对于多分 P 视频，视频级结果还应当记录风险分 P 编号和风险片段数量，使后台列表能够快速展示风险来源。
+在生成视频级结果时，系统继续对所有分 P 结果进行归并。若任一分 P 建议驳回，则视频级 AI 建议为驳回；若不存在驳回但存在人工复核、处理异常或审核不完整，则视频级 AI 建议为人工复核；只有所有分 P 均建议通过时，视频级 AI 建议才为通过。对于多分 P 视频，视频级结果还会汇总风险分 P、风险窗口数量和主要风险说明，使后台列表能够快速展示风险来源。
 
 最终，AI 服务将视频级结果和分 P 级结果封装为审核结果消息返回主站服务。主站服务接收到结果后，将其写入 AI 审核任务表和分 P 审核明细表，供后台管理端读取。后台管理员查看视频审核详情时，可以根据 AI 审核摘要了解整体风险，也可以根据分 P 明细和片段证据进一步定位具体内容。
 
