@@ -241,6 +241,8 @@ AI 审核与异常场景测试用例如表~\ref{tab:ai-audit-exception-test} 所
 
 跨服务事务测试主要验证系统在远程调用失败、数据库写入异常或业务校验失败时，是否能够保持关键业务数据状态一致。由于系统引入 Seata 分布式事务组件，测试时重点关注互动计数、用户资产变更、投稿审核状态更新等涉及多个服务协作的写操作\cite{seatadocs}。
 
+跨服务事务一致性测试用例如表~\ref{tab:distributed-transaction-test} 所示。
+
 \begin{table}[!htbp]
   \centering
   \caption{跨服务事务一致性测试用例}

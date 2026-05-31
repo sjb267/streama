@@ -747,13 +747,9 @@ AI 初审与人工终审的协同关系主要体现在决策边界上。AI 服�
 
 多模态 AI 审核服务是 AI 初审的具体执行模块。该服务接收主站服务投递的视频审核请求后，按照分 P 文件逐个处理视频内容，并输出分 P 级和视频级审核结果。
 
-AI 审核服务不会直接将完整视频输入多模态模型，而是先对视频进行预处理，将其拆分为音频、语音文本、声音事件和关键帧等结构化证据。随后，系统根据视频时长、场景切分结果和风险声音时间点构建 \texttt{visual\_scene} 场景片段，再生成 \texttt{adaptive\_review\_window} 或 \texttt{review\_window} 审核窗口。每个审核窗口都会聚合该时间范围内的画面、语音文本、声音事件和投稿元数据，最后调用 \texttt{Qwen} 进行多模态判断。
+\subsection{AI 审核服务结构与模型选型依据}
 
-\subsection{AI 审核服务结构}
-
-AI 审核服务可以按照处理职责划分为审核编排层、模型能力层、片段构建层和结果生成层。审核编排层负责控制完整审核流程，包括接收审核请求、初始化模型服务、调用视频处理方法、收集异常信息和返回最终结果。模型能力层负责封装具体模型调用，包括 VAD 语音活动检测、Whisper 语音转写、YAMNet 声音事件识别和 Qwen 多模态审核，其中当前多模态视觉语言模型使用 \texttt{Qwen/Qwen3-VL-4B-Instruct}。片段构建层负责将不同模态的数据按照时间戳对齐，生成可供模型审核的 \texttt{segment} 和审核窗口。结果生成层则负责将片段级结果归并为分 P 级和视频级审核建议。
-
-\texttt{ModerationEngine} 属于审核流程入口和运行状态管理，\texttt{VideoModerationService} 为具体的视频分析和模型调用。前者负责加载服务对象、控制同一时间的审核执行、维护模型健康状态和处理运行异常；后者负责视频音频流检测、音频提取、语音识别、声音事件识别、关键帧抽取、片段构建和模型审核。通过这种划分，系统能够将流程控制和模型能力调用分离，降低单个类的复杂度。
+AI 审核服务可以按照处理职责划分为审核编排层、模型能力层、片段构建层和结果生成层。审核编排层负责控制完整审核流程，包括接收审核请求、初始化模型服务、调用视频处理方法、收集异常信息和返回最终结果。模型能力层负责封装 VAD、Whisper、YAMNet 和 Qwen 等模型能力，其中当前多模态视觉语言模型使用 \texttt{Qwen/Qwen3-VL-4B-Instruct}。片段构建层负责将不同模态的数据按照时间戳对齐，生成可供模型审核的 \texttt{segment} 和审核窗口。结果生成层则负责将片段级结果归并为分 P 级和视频级审核建议。
 
 AI 审核服务结构如图~\ref{fig:ai-service-class} 所示。
 
@@ -764,7 +760,17 @@ AI 审核服务结构如图~\ref{fig:ai-service-class} 所示。
     \label{fig:ai-service-class}
 \end{figure}
 
-AI 审核服务结构以“编排流程”和“模型调用”来分离。审核编排层负责把控处理顺序，模型能力层负责完成具体分析，片段构建层负责组织多模态证据，生成可落库、可展示和可复核的审核结果，便于后续替换模型或扩展新的审核能力。
+\FloatBarrier
+
+审核编排层负责把控处理顺序，模型能力层负责完成具体分析，片段构建层负责组织多模态证据，结果生成层负责生成可落库、可展示和可复核的审核结果。
+
+在审核方式选择上，本文参考了视频毒性内容检测相关研究。Maity 等提出的 ToxVidLM 面向视频内容中的毒性检测任务，将视频中的多模态信息引入检测过程，并通过编码模块、跨模态同步模块和多任务模块完成毒性、情感和严重程度等判断\cite{maity2024toxvidlm}。该研究说明，视频审核类任务需要结合语言内容、视觉画面及其上下文关系进行综合判断。结合本文系统实现，语音转写结果、声音事件、关键帧和投稿元数据被统一组织到审核窗口中，再由多模态模型生成片段级审核建议。
+
+在具体模型选择上，本文主要结合任务适配性、输出可结构化程度和工程部署成本进行取舍。语音内容处理环节选择 Whisper，而不是直接使用通用文本生成模型，是因为该环节的输入是原始音频，核心任务是语音识别而不是文本生成。Whisper 面向语音识别任务设计，并基于大规模弱监督语音数据训练，在多语言、多任务语音识别场景中具有较好的泛化能力\cite{radford2023whisper}。因此，Whisper 更适合将视频中的口播和对白转换为带时间信息的文本证据，供后续审核窗口使用。相比之下，通用文本生成模型主要处理已经给定的文本输入，不能直接完成音频转写，也难以提供与视频时间轴对应的语音片段结果。
+
+声音事件识别环节选择 YAMNet，YAMNet 是面向声音事件分类的模型，能够预测 AudioSet 体系中的 521 类声音事件，并采用 MobileNet v1 结构，模型相对轻量，适合在预处理阶段对音频进行快速分类\cite{tensorflow_yamnet}。因此，本文没有仅依赖 Whisper 的转写结果，而是使用 YAMNet 补充非语音声音事件，从而提高对无对白或低语音视频的覆盖能力。
+
+多模态综合判断环节选择 \texttt{Qwen/Qwen3-VL-4B-Instruct}，是因为该环节需要同时理解关键帧、语音文本、声音摘要和投稿元数据。普通文本大模型只能处理文本化后的信息，难以直接利用关键帧画面；传统图像分类模型虽然能够识别画面类别，但不适合结合文本上下文生成审核理由。Qwen3-VL 系列支持图像、视频与文本等多模态输入，能够进行图文理解和视频相关推理，其中 4B 规模模型在多模态理解能力和推理资源消耗之间具有较好的折中\cite{qwen3vl4b}。因此，本文选择该模型作为片段级综合审核模型，而不是选择仅支持文本输入的模型或部署成本更高的大规模视觉语言模型。
 
 \subsection{视频预处理与音频提取实现}
 
@@ -772,7 +778,7 @@ AI 审核服务结构以“编排流程”和“模型调用”来分离。审�
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.85\textwidth]{images/ai_video_preprocess_flow.png}
+    \includegraphics[width=1\textwidth]{images/ai_video_preprocess_flow.png}
     \caption{视频预处理与音频提取流程图}
     \label{fig:ai-video-preprocess-flow}
 \end{figure}
@@ -828,9 +834,9 @@ AI 审核服务结构以“编排流程”和“模型调用”来分离。审�
 
 \subsection{语音文本、声音事件与关键帧审核实现}
 
-完成视频预处理后，系统需要将语音文本、声音事件和关键帧组织为可供 Qwen 审核的时间窗口。真实实现并不是分别从语音、声音和画面生成三类独立片段，而是先以视频画面为主轴构建 \texttt{visual\_scene} 场景片段。场景片段的边界主要来自视频时长、场景切分结果、固定窗口长度以及风险声音附近的补充边界。这样可以保证即使视频没有语音文本，也能围绕画面和时间轴进入后续审核流程。
+完成视频预处理后，系统需要将语音文本、声音事件和关键帧组织为可供 Qwen 审核的时间窗口。以视频画面为主轴构建 \texttt{visual\_scene} 场景片段。场景片段的边界主要来自视频时长、场景切分结果、固定窗口长度以及风险声音附近的补充边界, 可以保证即使视频没有语音文本，也能围绕画面和时间轴进入后续审核流程。
 
-在语音文本处理方面，Whisper 的转写结果会被保存为带开始时间和结束时间的文本片段，并尽量保留词级时间戳。系统不会单独把一段语音直接作为最终审核单元，而是在 \texttt{visual\_scene} 或后续审核窗口内查找对应的语音文本。如果语音片段时间较长，系统会把当前窗口内命中的文字作为主要证据，同时保留整段语音上下文作为辅助信息，避免长语音内容被错误绑定到不相关画面。
+在语音文本处理方面，Whisper 的转写结果会被保存为带开始时间和结束时间的文本片段，并尽量保留词级时间戳。 \texttt{visual\_scene} 或后续审核窗口内查找对应的语音文本。如果语音片段时间较长，系统会把当前窗口内命中的文字作为主要证据，同时保留整段语音上下文作为辅助信息，避免长语音内容被错误绑定到不相关画面。
 
 在声音事件处理方面，YAMNet 的识别结果会按照时间戳对齐到场景片段和审核窗口中。对于普通声音事件，系统将其作为背景上下文加入提示词；对于枪声、爆炸、尖叫、警报等风险声音，系统会在构建视觉窗口时加入风险声音前后的补充边界，并在后续 \texttt{adaptive\_review\_window} 中标记 \texttt{risk\_focus} 原因。若风险声音附近缺少可用画面，系统会记录覆盖问题，并在综合结论中倾向人工复核。
 
@@ -847,7 +853,7 @@ AI 审核服务结构以“编排流程”和“模型调用”来分离。审�
 
 基于场景窗口的多模态审核片段构建过程如算法~\ref{alg:multi-source-segment-build} 所示。该算法的核心思想是：先围绕视频画面和时间轴生成 \texttt{visual\_scene}，再将语音文本、声音事件和投稿元数据对齐到场景片段中，最后生成适合 Qwen 调用的审核窗口。通过这种处理方式，系统既能覆盖纯画面内容，也能在风险声音或文本规则命中时缩小重点审核范围。
 
-\begin{algorithm}[!htbp]
+\begin{algorithm}[H]
     \caption{基于场景窗口的多模态审核片段构建算法}
     \label{alg:multi-source-segment-build}
     \begin{algorithmic}[1]
@@ -885,22 +891,23 @@ AI 审核服务结构以“编排流程”和“模型调用”来分离。审�
     \end{algorithmic}
 \end{algorithm}
 
+算法~\ref{alg:multi-source-segment-build} 对应的后台展示效果如图~\ref{fig:ai-segment-audit-result} 和图~\ref{fig:ai-segment-detail-result} 所示。
+
 \begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{images/ai_segment_audit_result.png}
+    \includegraphics[width=0.9\textwidth]{images/ai_segment_audit_result.png}
     \caption{分 P 文件 AI 审核结果展示界面}
     \label{fig:ai-segment-audit-result}
 \end{figure}
 
 \begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{images/ai_segment_detail_result.png}
+    \includegraphics[width=0.9\textwidth]{images/ai_segment_detail_result.png}
     \caption{风险审核片段证据展示界面}
     \label{fig:ai-segment-detail-result}
 \end{figure}
 
-算法~\ref{alg:multi-source-segment-build} 对应的后台展示效果如图~\ref{fig:ai-segment-audit-result} 和图~\ref{fig:ai-segment-detail-result} 所示。图~\ref{fig:ai-segment-audit-result} 展示了后台审核详情页中分 P 文件的 AI 审核结果，页面在播放预览区域下方以时间轴方式标记不同审核窗口，并在右侧展示 AI 状态、AI 建议、风险分数、窗口数量和风险来源等信息。图~\ref{fig:ai-segment-detail-result} 展示了某个风险窗口的具体证据，包括时间范围、风险类型、风险分数、模型判断说明、语音文本内容、风险音频标记以及代表关键帧画面。该界面说明系统已将语音文本、声音事件和关键帧按照审核窗口组织为可查看的证据，便于管理员根据片段证据进行人工复核。
-
+图~\ref{fig:ai-segment-audit-result} 展示了后台审核详情页中分 P 文件的 AI 审核结果，页面在播放预览区域下方以时间轴方式标记不同审核窗口，并在右侧展示 AI 状态、AI 建议、风险分数、窗口数量和风险来源等信息。图~\ref{fig:ai-segment-detail-result} 展示了某个风险窗口的具体证据，包括时间范围、风险类型、风险分数、模型判断说明、语音文本内容、风险音频标记以及代表关键帧画面。该界面说明系统已将语音文本、声音事件和关键帧按照审核窗口组织为可查看的证据，便于管理员根据片段证据进行人工复核。
 
 构建完成后，每个审核窗口都会保存开始时间、结束时间、来源类型、代表帧路径、语音文本摘要、声音事件摘要、模型审核结果和模型输入追踪文件。窗口来源主要包括 \texttt{visual\_scene}、\texttt{adaptive\_review\_window} 和 \texttt{review\_window}。后台管理员查看审核结果时，可以结合 \texttt{modalities}、风险声音标记、文本摘要和代表帧判断风险来源，从而区分该风险主要来自语音内容、声音事件、投稿元数据还是画面证据。
 
