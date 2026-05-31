@@ -126,6 +126,7 @@ public class RedisComponent {
         //若没有则直接使用默认的
         if(sysSettingDto == null) {
             sysSettingDto = new SysSettingDto();
+            redisUtils.set(Constants.REDIS_KEY_SYS_SETTING, sysSettingDto);
         }
         return sysSettingDto;
     }

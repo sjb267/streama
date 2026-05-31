@@ -356,6 +356,29 @@ function handleAvatarClick() {
   }
 }
 
+function goHome() {
+  searchKeyword.value = ''
+  searchOrderType.value = 0
+  resetSearchState()
+  selectedParentCategoryId.value = 'all'
+  selectedChildCategoryId.value = 'all'
+  hoveredParentCategoryId.value = ''
+  videoPagination.value.pageNo = 1
+  videoPagination.value.pageSize = 15
+  searchInputFocused.value = false
+  searchAreaHovered.value = false
+  clearHotKeywordTimer()
+  clearHideHotKeywordTimer()
+  clearHotKeywords()
+
+  if (Object.keys(route.query || {}).length > 0) {
+    router.push({ path: '/' }).catch(() => {})
+    return
+  }
+
+  loadVideos()
+}
+
 function goCreatorCenter() {
   router.push('/creator')
 }
@@ -720,7 +743,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="home-page">
     <header class="home-header panel">
-      <div class="brand-area">
+      <button class="brand-area" type="button" @click="goHome">
         <div class="brand-logo">
           <IconFont name="icon-iconfont1" size="24px" />
         </div>
@@ -728,7 +751,7 @@ onBeforeUnmount(() => {
           <p class="brand-name">Streama</p>
           <p class="brand-subtitle">视频分享平台</p>
         </div>
-      </div>
+      </button>
 
       <div
         class="search-area"
@@ -739,7 +762,7 @@ onBeforeUnmount(() => {
           v-model="searchKeyword"
           class="search-input"
           clearable
-          placeholder="搜索视频、作者、标签"
+          placeholder="搜索视频、标签"
           size="large"
           @focus="handleSearchFocus"
           @blur="handleSearchBlur"
@@ -1023,9 +1046,17 @@ onBeforeUnmount(() => {
 }
 
 .brand-area {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   display: flex;
   align-items: center;
   gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 12px;
 }
 
 .brand-logo {
@@ -1037,6 +1068,17 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.brand-area:hover .brand-logo {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(77, 107, 255, 0.22);
+}
+
+.brand-area:focus-visible {
+  outline: 2px solid #5d76ff;
+  outline-offset: 4px;
 }
 
 .brand-name {
@@ -1521,4 +1563,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-

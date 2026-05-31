@@ -507,6 +507,10 @@ function createPartItem() {
     error: '',
     uploading: false,
     fileSize: 0,
+    duration: 0,
+    durationLoading: false,
+    durationError: '',
+    durationToken: 0,
   }
 }
 
@@ -1186,6 +1190,10 @@ function createEditPartItem(item, index) {
     error: '',
     uploading: false,
     fileSize: Math.max(0, Number(data.fileSize || 0)),
+    duration: Math.max(0, Math.floor(Number(data.duration || 0))),
+    durationLoading: false,
+    durationError: '',
+    durationToken: 0,
   }
 }
 
@@ -1411,6 +1419,70 @@ function formatFileSize(size) {
   return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
+function formatDuration(seconds) {
+  const totalSeconds = Math.max(0, Math.floor(Number(seconds || 0)))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const remainingSeconds = totalSeconds % 60
+  const padTime = (value) => String(value).padStart(2, '0')
+
+  if (hours > 0) {
+    return `${hours}:${padTime(minutes)}:${padTime(remainingSeconds)}`
+  }
+
+  return `${padTime(minutes)}:${padTime(remainingSeconds)}`
+}
+
+function readVideoDuration(file) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined' || typeof URL === 'undefined' || !file) {
+      reject(new Error('Video metadata is unavailable'))
+      return
+    }
+
+    const video = document.createElement('video')
+    const objectUrl = URL.createObjectURL(file)
+    let settled = false
+
+    const cleanup = () => {
+      video.onloadedmetadata = null
+      video.onerror = null
+      video.removeAttribute('src')
+      try {
+        video.load()
+      } catch (_error) {
+        // Ignore cleanup errors from detached media elements.
+      }
+      URL.revokeObjectURL(objectUrl)
+    }
+
+    const finish = (callback, value) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanup()
+      callback(value)
+    }
+
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration)
+      if (!Number.isFinite(duration) || duration <= 0) {
+        finish(reject, new Error('Invalid video duration'))
+        return
+      }
+      finish(resolve, Math.max(0, Math.round(duration)))
+    }
+    video.onerror = () => {
+      finish(reject, new Error('Video metadata failed to load'))
+    }
+    video.src = objectUrl
+  })
+}
+
 async function handleVideoInputChange(event) {
   const input = event.target
   const file = input.files?.[0]
@@ -1457,6 +1529,33 @@ async function startUploadPart(index, file, replacing) {
   part.fileId = ''
   part.uploadId = ''
   part.uploading = true
+  part.duration = 0
+  part.durationError = ''
+  part.durationLoading = true
+  part.durationToken = Number(part.durationToken || 0) + 1
+  const durationToken = part.durationToken
+
+  readVideoDuration(file)
+    .then((duration) => {
+      if (part.durationToken !== durationToken) {
+        return
+      }
+      part.duration = duration
+      part.durationError = ''
+    })
+    .catch(() => {
+      if (part.durationToken !== durationToken) {
+        return
+      }
+      part.duration = 0
+      part.durationError = '时长读取失败'
+    })
+    .finally(() => {
+      if (part.durationToken !== durationToken) {
+        return
+      }
+      part.durationLoading = false
+    })
 
   try {
     if (replacing && oldUploadId) {
@@ -1745,7 +1844,17 @@ async function submitPost() {
                     :stroke-width="8"
                     :status="part.status === 'error' ? 'exception' : part.status === 'success' ? 'success' : ''"
                   />
-                  <p v-if="part.fileSize" class="part-size">{{ formatFileSize(part.fileSize) }}</p>
+                  <p
+                    v-if="part.fileSize || part.duration || part.durationLoading || part.durationError"
+                    class="part-meta"
+                  >
+                    <span v-if="part.fileSize" class="part-meta-item">容量 {{ formatFileSize(part.fileSize) }}</span>
+                    <span v-if="part.durationLoading" class="part-meta-item">时长解析中...</span>
+                    <span v-else-if="part.durationError" class="part-meta-item part-meta-error">
+                      {{ part.durationError }}
+                    </span>
+                    <span v-else-if="part.duration" class="part-meta-item">时长 {{ formatDuration(part.duration) }}</span>
+                  </p>
                 </div>
                 <div class="part-actions">
                   <button
@@ -2998,10 +3107,24 @@ async function submitPost() {
   color: #6f7f9f;
 }
 
-.part-size {
+.part-meta {
   margin: 6px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #7f8ca8;
+}
+
+.part-meta-item + .part-meta-item::before {
+  content: '·';
+  margin-right: 4px;
+  color: #a5afc4;
+}
+
+.part-meta-error {
+  color: #ef4444;
 }
 
 .part-actions {

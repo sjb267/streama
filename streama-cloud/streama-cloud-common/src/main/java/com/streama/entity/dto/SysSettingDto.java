@@ -14,7 +14,7 @@ public class SysSettingDto implements Serializable {
     private Integer registerCoinCount = 10;
     private Integer postVideoCoinCount = 5;
     //文件大小
-    private Integer videoSize = 100;
+    private Integer videoSize = 10000;
     //文件批数
     private Integer videoPCount = 10;
     //文件
